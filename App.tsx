@@ -160,12 +160,16 @@ const App: React.FC = () => {
   };
 
   const handleRenameUploadedFile = (id: string, newName: string) => {
-    setUploadedFiles(prev => prev.map(item =>
-      item.id === id ? { ...item, customName: newName } : item
-    ));
-    if (uploadedFiles.length <= 1 || uploadedFiles[0]?.id === id) {
-      setOutputFileName(newName);
-    }
+    setUploadedFiles(prev => {
+      const updated = prev.map(item =>
+        item.id === id ? { ...item, customName: newName } : item
+      );
+      if (updated.length <= 1 || updated[0]?.id === id) {
+        setOutputFileName(newName);
+      }
+      return updated;
+    });
+    setOutputFileName(newName);
   };
 
   const handleDownloadUploadedFile = (item: UploadedFileItem) => {
@@ -240,9 +244,9 @@ const App: React.FC = () => {
         const thumbnails = pages.slice(0, 5).map(p => p.thumbnailUrl);
         const suggestedName = await suggestFileNameWithAI(thumbnails, file?.name || outputFileName || 'Tai_lieu');
         setOutputFileName(suggestedName);
-        if (uploadedFiles.length === 1) {
-          handleRenameUploadedFile(uploadedFiles[0].id, suggestedName);
-        }
+        setUploadedFiles(prev => prev.map((item, idx) => 
+          idx === 0 ? { ...item, customName: suggestedName } : item
+        ));
       }
     } catch (err: any) {
       console.error(err);
@@ -251,7 +255,11 @@ const App: React.FC = () => {
         .replace(/[^a-zA-Z0-9\u00C0-\u1EF9]/g, '_')
         .replace(/_+/g, '_')
         .replace(/^_|_$/g, '');
-      setOutputFileName(cleaned || 'Tai_lieu_PDF');
+      const fallbackName = cleaned || 'Tai_lieu_PDF';
+      setOutputFileName(fallbackName);
+      setUploadedFiles(prev => prev.map((item, idx) => 
+        idx === 0 ? { ...item, customName: fallbackName } : item
+      ));
     } finally {
       setIsAiNaming(false);
     }

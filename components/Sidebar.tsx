@@ -492,7 +492,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <button
                           key={btn.label}
                           onClick={() => {
-                            const newVal = `${item.customName || ''}${btn.suffix}`;
+                            const baseName = item.customName || outputFileName || '';
+                            const newVal = `${baseName}${btn.suffix}`;
                             if (onRenameUploadedFile && item.id !== 'default-file') {
                               onRenameUploadedFile(item.id, newVal);
                             } else {
@@ -516,7 +517,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span className="text-xs font-bold text-teal-900 truncate block mt-0.5">
                     {uploadedFiles && uploadedFiles.length > 1
                       ? `Đang sẵn sàng tải về ${uploadedFiles.length} tài liệu`
-                      : (outputFileName ? `${outputFileName}.pdf` : '⚠️ Chưa đặt tên file')}
+                      : ((uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName) ? `${uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName}.pdf` : '⚠️ Chưa đặt tên file')}
                   </span>
                 </div>
               </div>
@@ -563,14 +564,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ) : (
                   <button
                     onClick={onSplit}
-                    disabled={selectedCount === 0 || !outputFileName.trim()}
+                    disabled={selectedCount === 0 || !(uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName).trim()}
                     className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 hover:from-teal-700 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-extrabold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Download className="w-4 h-4 transition-transform group-hover:scale-110" />
-                    <span className="truncate">📥 Tải về ngay ({outputFileName ? `${outputFileName}.pdf` : 'Chưa đặt tên'})</span>
+                    <span className="truncate">📥 Tải về ngay ({(uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName) ? `${uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName}.pdf` : 'Chưa đặt tên'})</span>
                   </button>
                 )}
-                {!outputFileName.trim() && !(uploadedFiles && uploadedFiles.length > 1) && (
+                {!(uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName).trim() && !(uploadedFiles && uploadedFiles.length > 1) && (
                   <p className="text-[11px] text-center text-amber-600 font-semibold mt-1.5">
                     ⚠️ Vui lòng nhập hoặc nhờ AI đặt tên trước khi tải
                   </p>
