@@ -456,15 +456,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
 
                     {/* Manual Filename Input */}
-                    <div className={clsx(
-                      "flex items-center bg-slate-50/80 border-2 rounded-xl px-3 py-2 transition-all",
-                      !(item.customName || '').trim()
-                        ? "border-amber-400 ring-2 ring-amber-100"
-                        : "border-slate-200 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/15 focus-within:bg-white"
-                    )}>
+                    <div 
+                      title={item.customName || outputFileName || ''}
+                      className={clsx(
+                        "flex items-center bg-slate-50/80 border-2 rounded-xl px-3 py-2 transition-all cursor-text",
+                        !(item.customName || '').trim()
+                          ? "border-amber-400 ring-2 ring-amber-100"
+                          : "border-slate-200 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/15 focus-within:bg-white"
+                      )}>
                       <FileText className="w-3.5 h-3.5 text-teal-600 mr-2 shrink-0" />
                       <input 
                         type="text" 
+                        title={item.customName || outputFileName || ''}
                         value={item.customName || ''}
                         onChange={(e) => {
                           if (onRenameUploadedFile && item.id !== 'default-file') {
@@ -481,19 +484,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {/* Quick date pills for this file */}
                     <div className="flex items-center flex-wrap gap-1">
                       <span className="text-[10px] text-slate-400 font-semibold mr-0.5 flex items-center gap-0.5">
-                        <Calendar className="w-3 h-3 text-teal-600" /> +Ngày:
+                        <Calendar className="w-3 h-3 text-teal-600" /> +Ngày (ở đầu):
                       </span>
                       {[
-                        { label: 'Năm', suffix: `_${new Date().getFullYear()}` },
-                        { label: 'Tháng', suffix: `_T${String(new Date().getMonth() + 1).padStart(2, '0')}` },
-                        { label: 'Ngày', suffix: `_${String(new Date().getDate()).padStart(2, '0')}` },
-                        { label: 'Y-M-D', suffix: `_${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` }
+                        { label: 'Năm', prefix: `${new Date().getFullYear()}` },
+                        { label: 'Tháng', prefix: `T${String(new Date().getMonth() + 1).padStart(2, '0')}` },
+                        { label: 'Ngày', prefix: `${String(new Date().getDate()).padStart(2, '0')}` },
+                        { label: 'Y-M-D', prefix: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` }
                       ].map(btn => (
                         <button
                           key={btn.label}
+                          title={`Thêm "${btn.prefix}_" vào đầu tên file`}
                           onClick={() => {
-                            const baseName = item.customName || outputFileName || '';
-                            const newVal = `${baseName}${btn.suffix}`;
+                            const baseName = (item.customName || outputFileName || '').trim();
+                            const cleanBase = baseName.replace(/^_|_$/g, '');
+                            const newVal = cleanBase ? `${btn.prefix}_${cleanBase}` : btn.prefix;
                             if (onRenameUploadedFile && item.id !== 'default-file') {
                               onRenameUploadedFile(item.id, newVal);
                             } else {
@@ -511,16 +516,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
 
               {/* Complete Filename Preview Card */}
-              <div className="p-3 bg-white border border-slate-200/80 rounded-xl flex items-center justify-between shadow-2xs mt-2">
-                <div className="min-w-0">
-                  <span className="text-[10px] text-slate-400 font-semibold block">Tình trạng đặt tên:</span>
-                  <span className="text-xs font-bold text-teal-900 truncate block mt-0.5">
-                    {uploadedFiles && uploadedFiles.length > 1
-                      ? `Đang sẵn sàng tải về ${uploadedFiles.length} tài liệu`
-                      : ((uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName) ? `${uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName}.pdf` : '⚠️ Chưa đặt tên file')}
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const activeSingleName = (uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName) || '';
+                const fullPreviewName = uploadedFiles && uploadedFiles.length > 1
+                  ? `Đang sẵn sàng tải về ${uploadedFiles.length} tài liệu`
+                  : (activeSingleName ? `${activeSingleName}.pdf` : '⚠️ Chưa đặt tên file');
+                return (
+                  <div 
+                    title={fullPreviewName}
+                    className="p-3 bg-white border border-slate-200/80 rounded-xl flex items-center justify-between shadow-2xs mt-2 cursor-default"
+                  >
+                    <div className="min-w-0 w-full">
+                      <span className="text-[10px] text-slate-400 font-semibold block">Tình trạng đặt tên:</span>
+                      <span 
+                        title={fullPreviewName}
+                        className="text-xs font-bold text-teal-900 truncate block mt-0.5"
+                      >
+                        {fullPreviewName}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </section>
 
             {/* Direct Download Button (No need to go to Split / Merge) */}
@@ -554,23 +571,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                     <button
                       onClick={onSplit}
+                      title={`📥 Tải 1 file chung gộp (${outputFileName || 'merged'}.pdf)`}
                       disabled={selectedCount === 0 || !outputFileName.trim()}
                       className="w-full py-2.5 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2"
                     >
-                      <Download className="w-3.5 h-3.5 text-teal-600" />
-                      <span className="truncate">Tải 1 file chung gộp ({outputFileName || 'merged'}.pdf)</span>
+                      <Download className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                      <span className="truncate" title={`Tải 1 file chung gộp (${outputFileName || 'merged'}.pdf)`}>Tải 1 file chung gộp ({outputFileName || 'merged'}.pdf)</span>
                     </button>
                   </div>
-                ) : (
-                  <button
-                    onClick={onSplit}
-                    disabled={selectedCount === 0 || !(uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName).trim()}
-                    className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 hover:from-teal-700 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-extrabold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <Download className="w-4 h-4 transition-transform group-hover:scale-110" />
-                    <span className="truncate">📥 Tải về ngay ({(uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName) ? `${uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName}.pdf` : 'Chưa đặt tên'})</span>
-                  </button>
-                )}
+                ) : (() => {
+                  const activeSingleName = (uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName) || '';
+                  const fullDownloadTitle = activeSingleName ? `📥 Tải về ngay (${activeSingleName}.pdf)` : 'Chưa đặt tên';
+                  return (
+                    <button
+                      onClick={onSplit}
+                      title={fullDownloadTitle}
+                      disabled={selectedCount === 0 || !activeSingleName.trim()}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 hover:from-teal-700 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-extrabold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <Download className="w-4 h-4 transition-transform group-hover:scale-110 shrink-0" />
+                      <span className="truncate" title={fullDownloadTitle}>
+                        📥 Tải về ngay ({activeSingleName ? `${activeSingleName}.pdf` : 'Chưa đặt tên'})
+                      </span>
+                    </button>
+                  );
+                })()}
                 {!(uploadedFiles && uploadedFiles.length === 1 ? uploadedFiles[0].customName : outputFileName).trim() && !(uploadedFiles && uploadedFiles.length > 1) && (
                   <p className="text-[11px] text-center text-amber-600 font-semibold mt-1.5">
                     ⚠️ Vui lòng nhập hoặc nhờ AI đặt tên trước khi tải
