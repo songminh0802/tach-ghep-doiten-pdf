@@ -16,7 +16,9 @@ import {
   Eye,
   Wand2,
   ArrowRight,
-  ArrowLeft
+  ArrowLeft,
+  Download,
+  UploadCloud
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -39,6 +41,7 @@ interface SidebarProps {
   setOutputFileName: (name: string) => void;
   onAiSuggestFileName?: () => void;
   isAiNaming?: boolean;
+  onUploadFile?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -59,7 +62,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   outputFileName,
   setOutputFileName,
   onAiSuggestFileName,
-  isAiNaming
+  isAiNaming,
+  onUploadFile
 }) => {
   // 4 Tabs: 'preview' (Xem trước) | 'rename' (Đổi tên) | 'split' (Tách file) | 'merge' (Gộp file)
   const [activeTab, setActiveTab] = useState<'preview' | 'rename' | 'split' | 'merge'>('preview');
@@ -162,6 +166,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Scrollable Main Area - Changes based on Active Step */}
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {totalDocs === 0 && (
+          <div className="p-4 bg-gradient-to-br from-teal-50 to-emerald-50 border-2 border-dashed border-teal-300 rounded-2xl text-center space-y-2.5">
+            <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-teal-600 mx-auto">
+              <UploadCloud className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-teal-900">Chưa có tài liệu nào</h4>
+              <p className="text-[11px] text-teal-700/80 mt-0.5">
+                Tải file PDF lên ở vùng làm việc bên phải để bắt đầu
+              </p>
+            </div>
+            {onUploadFile && (
+              <div className="relative group cursor-pointer">
+                <input
+                  type="file"
+                  multiple
+                  accept="application/pdf"
+                  onChange={onUploadFile}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                />
+                <button className="w-full py-2.5 px-3 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5">
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  <span>Chọn file PDF ngay</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         
         {/* ======================= TAB 1: XEM TRƯỚC & CHỌN TRANG ======================= */}
         {activeTab === 'preview' && (
@@ -420,26 +452,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </section>
 
-            {/* Next Steps: Choice of Split or Merge */}
-            <section className="space-y-2 pt-1">
-              <span className="text-xs font-bold text-slate-700 block">Bước tiếp theo: Chọn chức năng xử lý</span>
-              <div className="grid grid-cols-2 gap-2">
+            {/* Direct Download Button (No need to go to Split / Merge) */}
+            <section className="space-y-3 pt-1">
+              <div className="p-3.5 bg-gradient-to-br from-teal-500/15 via-emerald-500/10 to-slate-50 border-2 border-teal-500/40 rounded-2xl shadow-sm">
+                <div className="mb-2.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-800 bg-teal-100 px-2 py-0.5 rounded-full block w-fit mb-1">
+                    ⚡ Tải nhanh trực tiếp
+                  </span>
+                  <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Download className="w-4 h-4 text-teal-600" />
+                    Tải về luôn (Không qua tách/gộp)
+                  </h4>
+                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed font-medium">
+                    Tải ngay toàn bộ {selectedCount} trang đang chọn thành 1 file PDF mới với tên đã đặt ở trên.
+                  </p>
+                </div>
                 <button
-                  onClick={() => setActiveTab('split')}
-                  disabled={selectedCount === 0}
-                  className="w-full py-3 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5"
+                  onClick={onSplit}
+                  disabled={selectedCount === 0 || !outputFileName.trim()}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 hover:from-teal-700 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-extrabold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <FileStack className="w-4 h-4" />
-                  <span>Tách file ➔</span>
+                  <Download className="w-4 h-4 transition-transform group-hover:scale-110" />
+                  <span className="truncate">📥 Tải về ngay ({outputFileName ? `${outputFileName}.pdf` : 'Chưa đặt tên'})</span>
                 </button>
-                <button
-                  onClick={() => setActiveTab('merge')}
-                  disabled={selectedCount === 0}
-                  className="w-full py-3 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5"
-                >
-                  <Merge className="w-4 h-4" />
-                  <span>Gộp file ➔</span>
-                </button>
+                {!outputFileName.trim() && (
+                  <p className="text-[11px] text-center text-amber-600 font-semibold mt-1.5">
+                    ⚠️ Vui lòng nhập hoặc nhờ AI đặt tên trước khi tải
+                  </p>
+                )}
+              </div>
+
+              {/* Advanced Next Steps: Choice of Split or Merge */}
+              <div className="pt-2 border-t border-slate-200/80">
+                <span className="text-[11px] font-bold text-slate-500 block mb-2">
+                  Hoặc chuyển qua các tính năng nâng cao khác:
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setActiveTab('split')}
+                    disabled={selectedCount === 0}
+                    className="w-full py-2.5 px-3 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <FileStack className="w-4 h-4" />
+                    <span>Tách file ➔</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('merge')}
+                    disabled={selectedCount === 0}
+                    className="w-full py-2.5 px-3 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Merge className="w-4 h-4" />
+                    <span>Gộp file ➔</span>
+                  </button>
+                </div>
               </div>
             </section>
           </>

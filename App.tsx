@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { UploadCloud, AlertCircle, Sparkles, RefreshCw, Download, Split, Merge, FileStack, FileText, Plus } from 'lucide-react';
+import { UploadCloud, AlertCircle, Sparkles, RefreshCw, Download, Split, Merge, FileStack, FileText, Plus, Eye, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { PDFViewer } from './components/PDFViewer';
 import { loadPDFAndRenderThumbnails, splitPDF, extractSeparatePages, createZipFromPages, mergePDFs, createBlankPDF } from './services/pdfService';
@@ -21,6 +21,7 @@ const App: React.FC = () => {
   const [isAiNaming, setIsAiNaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outputFileName, setOutputFileName] = useState<string>('');
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   // Handle File Upload
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -505,9 +506,14 @@ const App: React.FC = () => {
         
         {/* Header/Status Bar */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-10">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-               <h1 className="font-semibold text-slate-700 truncate max-w-xs" title={file.name}>{file.name}</h1>
-               <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full whitespace-nowrap">{pages.length} trang</span>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+               <div className="flex items-center gap-2 min-w-0">
+                 <span className="w-2.5 h-2.5 rounded-full bg-teal-500 animate-pulse shrink-0"></span>
+                 <h1 className="font-bold text-slate-800 truncate max-w-sm" title={file.name}>{file.name}</h1>
+               </div>
+               <span className="bg-teal-50 text-teal-700 border border-teal-200/70 font-semibold text-xs px-2.5 py-1 rounded-full whitespace-nowrap hidden sm:inline-block">
+                 📖 Xem trước toàn bộ tài liệu ({pages.length} trang)
+               </span>
             </div>
             
             <div className="flex items-center gap-3">
@@ -524,7 +530,16 @@ const App: React.FC = () => {
                    </div>
                 )}
                 
-                <div className="h-6 w-px bg-slate-200 mx-2 hidden sm:block"></div>
+                <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
+                <button
+                    onClick={() => setIsPreviewModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-teal-50 text-slate-700 hover:text-teal-700 border border-slate-200 hover:border-teal-300 rounded-lg text-xs font-bold transition-all shadow-2xs"
+                    title="Mở cửa sổ xem trước trọn bộ tài liệu PDF"
+                >
+                    <Eye className="w-3.5 h-3.5 text-teal-600" />
+                    <span className="hidden md:inline">Xem trọn bộ PDF</span>
+                </button>
 
                 <button 
                     onClick={handleDownloadOriginal}
@@ -563,6 +578,53 @@ const App: React.FC = () => {
                 <Sparkles className="w-4 h-4 mr-2" />
                 AI đã gợi ý các điểm ngắt. Hãy kiểm tra lại.
              </div>
+        )}
+
+        {/* Full PDF Preview Modal (Xem trước toàn bộ file PDF gốc) */}
+        {isPreviewModalOpen && file && (
+          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80 shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center font-bold shrink-0">
+                    <Eye className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      Xem trước trọn bộ tài liệu PDF
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium truncate max-w-md">
+                      {file.name} ({pages.length} trang)
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleDownloadOriginal}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-colors shadow-2xs"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Tải file gốc</span>
+                  </button>
+                  <button
+                    onClick={() => setIsPreviewModalOpen(false)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200 hover:bg-red-50 text-slate-700 hover:text-red-600 rounded-lg text-xs font-bold transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Đóng</span>
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 w-full bg-slate-100/50">
+                <iframe
+                  src={URL.createObjectURL(file)}
+                  className="w-full h-full border-none"
+                  title="PDF Full Preview"
+                />
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>
