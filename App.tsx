@@ -4,7 +4,7 @@ import { UploadCloud, AlertCircle, Sparkles, RefreshCw, Download, Split, Merge, 
 import { Sidebar } from './components/Sidebar';
 import { PDFViewer } from './components/PDFViewer';
 import { loadPDFAndRenderThumbnails, splitPDF, extractSeparatePages, createZipFromPages, mergePDFs, createBlankPDF } from './services/pdfService';
-import { analyzeSplitPoints } from './services/geminiService';
+import { analyzeSplitPoints, suggestFileNameWithAI } from './services/geminiService';
 import { PDFPage, SelectionMode, ProcessingState } from './types';
 import { Button } from './components/Button';
 
@@ -18,6 +18,7 @@ const App: React.FC = () => {
     progress: 0,
   });
   const [isAiProcessing, setIsAiProcessing] = useState(false);
+  const [isAiNaming, setIsAiNaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outputFileName, setOutputFileName] = useState<string>('');
 
@@ -133,6 +134,28 @@ const App: React.FC = () => {
     } finally {
       setIsAiProcessing(false);
       setProcessingState({ isProcessing: false, message: '', progress: 0 });
+    }
+  };
+
+  // AI Automatic Naming Handler based on document content
+  const handleAiSuggestFileName = async () => {
+    if (pages.length === 0) return;
+    setIsAiNaming(true);
+    try {
+      const thumbnails = pages.slice(0, 5).map(p => p.thumbnailUrl);
+      const suggestedName = await suggestFileNameWithAI(thumbnails, file?.name || outputFileName || 'Tai_lieu');
+      setOutputFileName(suggestedName);
+    } catch (err: any) {
+      console.error(err);
+      // Smart local fallback if AI service fails or key is missing
+      const base = (file?.name || outputFileName || 'Tai_lieu').replace(/\.pdf$/i, '');
+      const cleaned = base
+        .replace(/[^a-zA-Z0-9\u00C0-\u1EF9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '');
+      setOutputFileName(cleaned || 'Tai_lieu_PDF');
+    } finally {
+      setIsAiNaming(false);
     }
   };
 
@@ -473,6 +496,8 @@ const App: React.FC = () => {
         onAddBlankPage={handleAddBlankPage}
         outputFileName={outputFileName}
         setOutputFileName={setOutputFileName}
+        onAiSuggestFileName={handleAiSuggestFileName}
+        isAiNaming={isAiNaming}
       />
 
       {/* Main Content Area */}

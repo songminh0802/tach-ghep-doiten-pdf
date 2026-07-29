@@ -75,3 +75,61 @@ export const analyzeSplitPoints = async (
     throw new Error("Không thể phân tích tài liệu bằng AI lúc này.");
   }
 };
+
+/**
+ * Suggests a concise, professional file name based on document content using Gemini.
+ */
+export const suggestFileNameWithAI = async (
+  pageThumbnails: string[],
+  originalName: string
+): Promise<string> => {
+  try {
+    const parts: any[] = [];
+    parts.push({
+      text: `Bạn là trợ lý AI chuyên xử lý tài liệu.
+      Nhiệm vụ: Xem xét các trang tài liệu PDF dưới đây (tên gốc hiện tại: "${originalName}").
+      Hãy gợi ý một TÊN FILE mới ngắn gọn, chuyên nghiệp, phản ánh chính xác nội dung chính của tài liệu (không chứa ký tự đặc biệt, dùng dấu gạch dưới '_' thay khoảng trắng, không có đuôi .pdf, dài tối đa 6 từ).
+      Ví dụ: Hop_dong_thue_nha_2024, Bao_cao_doanh_thu_Q1, De_thi_toan_12.
+      
+      Trả về kết quả dưới dạng JSON chứa thuộc tính fileName.
+      `
+    });
+
+    const limitedThumbnails = pageThumbnails.slice(0, 5);
+    limitedThumbnails.forEach((dataUrl, index) => {
+      const base64Data = dataUrl.split(',')[1];
+      if (base64Data) {
+        parts.push({
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: base64Data
+          }
+        });
+        parts.push({ text: `Page ${index + 1}` });
+      }
+    });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: { parts },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            fileName: {
+              type: Type.STRING,
+              description: "Tên file gợi ý gọn gàng, chuyên nghiệp (không bao gồm đuôi .pdf)"
+            }
+          }
+        }
+      }
+    });
+
+    const json = JSON.parse(response.text || "{}");
+    return json.fileName || "Tai_lieu_PDF";
+  } catch (error) {
+    console.error("Gemini Naming Error:", error);
+    throw new Error("Không thể đặt tên tự động bằng AI lúc này.");
+  }
+};

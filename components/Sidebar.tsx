@@ -37,6 +37,8 @@ interface SidebarProps {
   onAddBlankPage: () => void;
   outputFileName: string;
   setOutputFileName: (name: string) => void;
+  onAiSuggestFileName?: () => void;
+  isAiNaming?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -55,7 +57,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeselectAll,
   onAddBlankPage,
   outputFileName,
-  setOutputFileName
+  setOutputFileName,
+  onAiSuggestFileName,
+  isAiNaming
 }) => {
   // Step 1: 'preview' (Xem trước & chọn trang) | Step 2: 'action' (Tách, Gộp, Đổi tên)
   const [activeTab, setActiveTab] = useState<'preview' | 'action'>('preview');
@@ -251,6 +255,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
 
+            {/* Quick Name Indicator Strip */}
+            <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                <span className="text-xs font-semibold text-slate-700 truncate" title={outputFileName || 'Chưa đặt tên file'}>
+                  {outputFileName ? `${outputFileName}.pdf` : '⚠️ Chưa đặt tên file'}
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('action')}
+                className="text-[11px] font-bold text-teal-600 hover:text-teal-800 underline shrink-0 ml-2"
+              >
+                Đổi tên
+              </button>
+            </div>
+
             {/* CTA Button to proceed to Step 2 */}
             <div className="pt-2">
               <button
@@ -290,28 +310,67 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
 
-            {/* Step 1: Output File Name (Rename) */}
-            <section>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            {/* Step 1: Output File Name (Rename & AI Auto-Name) */}
+            <section className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[11px] font-extrabold">1</span>
-                  Đổi tên file xuất ra
+                  Đặt tên / Đổi tên file
                 </span>
+                {!outputFileName.trim() ? (
+                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                    ⚠️ Chưa có tên
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                    ✓ Sẵn sàng
+                  </span>
+                )}
               </div>
-              <div className="flex items-center bg-white border border-slate-200/80 rounded-xl px-3 py-2.5 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/15 transition-all shadow-2xs">
+
+              {/* AI Auto-Name Button */}
+              {onAiSuggestFileName && (
+                <button
+                  onClick={onAiSuggestFileName}
+                  disabled={isAiNaming || totalDocs === 0}
+                  className="w-full py-2 px-3 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 group"
+                  title="Nhờ AI xem nội dung file và tự động gợi ý tên file chuẩn gọn gàng"
+                >
+                  <Sparkles className={clsx("w-3.5 h-3.5", isAiNaming ? "animate-spin" : "group-hover:scale-110 transition-transform")} />
+                  <span>{isAiNaming ? "AI đang đọc tài liệu & đặt tên..." : "✨ Nhờ AI đặt tên theo nội dung file"}</span>
+                </button>
+              )}
+
+              {/* Manual Filename Input */}
+              <div className={clsx(
+                "flex items-center bg-white border-2 rounded-xl px-3 py-2 transition-all shadow-2xs",
+                !outputFileName.trim()
+                  ? "border-amber-400 ring-2 ring-amber-100"
+                  : "border-slate-200 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/15"
+              )}>
                 <FileText className="w-4 h-4 text-teal-600 mr-2 shrink-0" />
                 <input 
                   type="text" 
                   value={outputFileName}
                   onChange={(e) => setOutputFileName(e.target.value)}
-                  className="w-full text-xs outline-none text-slate-800 bg-transparent placeholder-slate-400 font-medium"
-                  placeholder="Nhập tên file (VD: tailieu_moi.pdf)"
+                  className="w-full text-xs outline-none text-slate-800 bg-transparent placeholder-slate-400 font-semibold"
+                  placeholder="Nhập tên file (VD: Hop_dong_2026)..."
                 />
+                {outputFileName && (
+                  <button
+                    onClick={() => setOutputFileName('')}
+                    className="text-slate-400 hover:text-red-600 text-[11px] ml-1 px-1.5 py-0.5 rounded hover:bg-red-50 font-bold transition-colors"
+                    title="Xoá tên hiện tại để đặt lại từ đầu"
+                  >
+                    Xoá
+                  </button>
+                )}
               </div>
               
-              <div className="flex items-center flex-wrap gap-1.5 mt-2">
-                <span className="text-[11px] text-slate-400 mr-0.5 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" /> Thêm nhanh:
+              {/* Quick Date Addition Pills */}
+              <div className="flex items-center flex-wrap gap-1.5 pt-0.5">
+                <span className="text-[11px] text-slate-500 mr-0.5 flex items-center gap-1 font-semibold">
+                  <Calendar className="w-3.5 h-3.5 text-teal-600" /> Thêm ngày:
                 </span>
                 {[
                   { label: 'Năm', prefix: () => `${new Date().getFullYear()}_` },
@@ -325,7 +384,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       const currentVal = outputFileName.trim();
                       setOutputFileName(`${item.prefix()}${currentVal}`);
                     }}
-                    className="text-[11px] bg-slate-100 hover:bg-teal-50 text-slate-600 hover:text-teal-700 hover:border-teal-200 px-2 py-0.5 rounded-md border border-slate-200/80 transition-all font-medium active:scale-95"
+                    className="text-[11px] bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-700 hover:border-teal-300 px-2.5 py-1 rounded-md border border-slate-200 transition-all font-semibold active:scale-95 shadow-2xs"
                   >
                     +{item.label}
                   </button>
