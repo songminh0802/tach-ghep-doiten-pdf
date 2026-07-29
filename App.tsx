@@ -379,104 +379,7 @@ const App: React.FC = () => {
     setOutputFileName('');
   };
 
-  // Render Upload Screen
-  if (!file) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-2xl w-full">
-          {/* Header */}
-          <div className="text-center mb-8">
-             <h1 className="text-4xl font-bold text-slate-800 mb-2">SmartSplit PDF</h1>
-             <p className="text-slate-500">Công cụ xử lý PDF đa năng: Tách, Gộp và AI thông minh</p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-xl p-8 md:p-10 text-center border border-slate-100">
-            {/* Visual Icon */}
-            <div className="w-20 h-20 bg-teal-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <UploadCloud className="w-10 h-10 text-teal-600" />
-            </div>
-            
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Tải file lên để bắt đầu</h2>
-            <p className="text-slate-500 mb-8 max-w-md mx-auto text-sm">
-              Bạn có thể chọn một file để <b>tách</b> hoặc nhiều file để <b>gộp</b>.
-            </p>
-            
-            {/* Unified Upload Area */}
-            <div className="relative group cursor-pointer">
-              <input
-                type="file"
-                multiple
-                accept="application/pdf"
-                onChange={handleFileChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-              />
-              <div className="border-2 border-dashed border-slate-300 rounded-xl p-10 group-hover:border-teal-500 group-hover:bg-teal-50/30 transition-all duration-300">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="flex gap-4 mb-2 text-slate-300 group-hover:text-teal-400 transition-colors">
-                     <FileText className="w-8 h-8" />
-                     <FileStack className="w-8 h-8" />
-                  </div>
-                  <Button size="lg" className="pointer-events-none" icon={<UploadCloud className="w-5 h-5"/>}>
-                    Chọn File PDF
-                  </Button>
-                  <p className="mt-2 text-xs text-slate-400 font-medium">
-                    Hỗ trợ kéo thả & chọn nhiều file
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center my-6">
-              <div className="flex-1 border-t border-slate-200"></div>
-              <span className="px-3 text-slate-400 text-xs uppercase font-semibold">Hoặc</span>
-              <div className="flex-1 border-t border-slate-200"></div>
-            </div>
-
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={handleStartWithBlankDocument}
-                className="text-teal-700 bg-white border-teal-200 hover:bg-teal-50 flex items-center justify-center gap-2 w-full md:w-auto font-semibold"
-                icon={<Plus className="w-5 h-5 text-teal-600" />}
-              >
-                Bắt đầu với trang trắng mới
-              </Button>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="mt-6 flex items-center justify-center text-red-500 text-sm bg-red-50 p-3 rounded-lg animate-fade-in">
-                <AlertCircle className="w-4 h-4 mr-2" />
-                {error}
-              </div>
-            )}
-            
-            {/* Progress Bar */}
-             {processingState.isProcessing && (
-              <div className="mt-6">
-                 <div className="text-sm text-teal-600 mb-2 font-medium">{processingState.message}</div>
-                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                    <div className="bg-teal-600 h-2 rounded-full transition-all duration-300" style={{width: `${processingState.progress}%`}}></div>
-                 </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-8 grid grid-cols-2 gap-4 text-center text-xs text-slate-400 max-w-lg mx-auto">
-             <div className="flex items-center justify-center gap-2">
-                <Split className="w-4 h-4" /> Tách trang tự động
-             </div>
-             <div className="flex items-center justify-center gap-2">
-                <Merge className="w-4 h-4" /> Gộp nhiều file
-             </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Main UI
+  // Main UI - Always render workspace layout first so user enters interface before uploading
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-slate-100 overflow-hidden">
       {/* Sidebar Controls */}
@@ -499,6 +402,7 @@ const App: React.FC = () => {
         setOutputFileName={setOutputFileName}
         onAiSuggestFileName={handleAiSuggestFileName}
         isAiNaming={isAiNaming}
+        onUploadFile={handleFileChange}
       />
 
       {/* Main Content Area */}
@@ -508,12 +412,20 @@ const App: React.FC = () => {
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-10">
             <div className="flex items-center gap-3 flex-1 min-w-0">
                <div className="flex items-center gap-2 min-w-0">
-                 <span className="w-2.5 h-2.5 rounded-full bg-teal-500 animate-pulse shrink-0"></span>
-                 <h1 className="font-bold text-slate-800 truncate max-w-sm" title={file.name}>{file.name}</h1>
+                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${file ? "bg-teal-500 animate-pulse" : "bg-slate-300"}`}></span>
+                 <h1 className="font-bold text-slate-800 truncate max-w-sm" title={file ? file.name : "SmartSplit PRO"}>
+                   {file ? file.name : "SmartSplit PRO - Trình xử lý PDF thông minh"}
+                 </h1>
                </div>
-               <span className="bg-teal-50 text-teal-700 border border-teal-200/70 font-semibold text-xs px-2.5 py-1 rounded-full whitespace-nowrap hidden sm:inline-block">
-                 📖 Xem trước toàn bộ tài liệu ({pages.length} trang)
-               </span>
+               {file ? (
+                 <span className="bg-teal-50 text-teal-700 border border-teal-200/70 font-semibold text-xs px-2.5 py-1 rounded-full whitespace-nowrap hidden sm:inline-block">
+                   📖 Xem trước toàn bộ tài liệu ({pages.length} trang)
+                 </span>
+               ) : (
+                 <span className="bg-slate-100 text-slate-600 border border-slate-200 font-semibold text-xs px-2.5 py-1 rounded-full whitespace-nowrap hidden sm:inline-block">
+                   📁 Chưa chọn tài liệu
+                 </span>
+               )}
             </div>
             
             <div className="flex items-center gap-3">
@@ -532,44 +444,118 @@ const App: React.FC = () => {
                 
                 <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
 
-                <button
-                    onClick={() => setIsPreviewModalOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-teal-50 text-slate-700 hover:text-teal-700 border border-slate-200 hover:border-teal-300 rounded-lg text-xs font-bold transition-all shadow-2xs"
-                    title="Mở cửa sổ xem trước trọn bộ tài liệu PDF"
-                >
-                    <Eye className="w-3.5 h-3.5 text-teal-600" />
-                    <span className="hidden md:inline">Xem trọn bộ PDF</span>
-                </button>
+                {!file ? (
+                  <div className="relative group cursor-pointer">
+                    <input
+                      type="file"
+                      multiple
+                      accept="application/pdf"
+                      onChange={handleFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                    />
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-lg text-xs font-extrabold transition-all shadow-2xs">
+                      <UploadCloud className="w-3.5 h-3.5" />
+                      <span>+ Tải file PDF lên</span>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                        onClick={() => setIsPreviewModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-teal-50 text-slate-700 hover:text-teal-700 border border-slate-200 hover:border-teal-300 rounded-lg text-xs font-bold transition-all shadow-2xs"
+                        title="Mở cửa sổ xem trước trọn bộ tài liệu PDF"
+                    >
+                        <Eye className="w-3.5 h-3.5 text-teal-600" />
+                        <span className="hidden md:inline">Xem trọn bộ PDF</span>
+                    </button>
 
-                <button 
-                    onClick={handleDownloadOriginal}
-                    className="p-2 text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded-full transition-colors"
-                    title="Tải file gốc"
-                >
-                    <Download className="w-5 h-5" />
-                </button>
+                    <button 
+                        onClick={handleDownloadOriginal}
+                        className="p-2 text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded-full transition-colors"
+                        title="Tải file gốc"
+                    >
+                        <Download className="w-5 h-5" />
+                    </button>
 
-                <button 
-                    onClick={resetApp}
-                    className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                    title="Làm mới / Tải file khác"
-                >
-                    <RefreshCw className="w-5 h-5" />
-                </button>
+                    <button 
+                        onClick={resetApp}
+                        className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                        title="Làm mới / Tải file khác"
+                    >
+                        <RefreshCw className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
             </div>
         </header>
 
-        {/* Scrollable PDF Grid */}
-        <div className="flex-1 overflow-y-auto bg-slate-100/50">
-           <PDFViewer 
-             pages={pages}
-             onTogglePage={togglePage}
-             onReorder={handleReorder}
-             onDeletePage={handleDeletePage}
-             onAddBlankPageAfter={handleAddBlankPageAfter}
-             onRotatePage={handleRotatePage}
-             onSelectRange={() => {}} // Not implemented for brevity, can be added later
-           />
+        {/* Scrollable PDF Grid OR Workspace Upload Card */}
+        <div className="flex-1 overflow-y-auto bg-slate-100/60 flex flex-col">
+          {!file || pages.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center p-6">
+              <div className="max-w-xl w-full bg-white rounded-3xl shadow-xl p-8 md:p-12 text-center border border-slate-200/80 transition-all">
+                <div className="w-20 h-20 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-teal-500/20 text-white">
+                  <UploadCloud className="w-10 h-10" />
+                </div>
+                
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">
+                  Tải file PDF lên để xử lý
+                </h2>
+                <p className="text-slate-500 mb-8 max-w-sm mx-auto text-xs leading-relaxed font-medium">
+                  Bạn đã vào sẵn giao diện làm việc. Hãy kéo thả file PDF vào đây hoặc chọn từ máy tính để bắt đầu <b>Xem trước</b>, <b>Đổi tên</b>, <b>Tách</b> hoặc <b>Gộp</b>.
+                </p>
+
+                <div className="relative group cursor-pointer max-w-sm mx-auto mb-4">
+                  <input
+                    type="file"
+                    multiple
+                    accept="application/pdf"
+                    onChange={handleFileChange}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                  />
+                  <div className="border-2 border-dashed border-teal-300 bg-teal-50/40 hover:bg-teal-50/80 rounded-2xl p-6 transition-all duration-300 group-hover:border-teal-500">
+                    <Button size="lg" className="w-full pointer-events-none font-bold" icon={<UploadCloud className="w-5 h-5"/>}>
+                      Chọn File PDF từ máy tính
+                    </Button>
+                    <p className="mt-2 text-[11px] text-teal-700 font-semibold">
+                      Hỗ trợ chọn 1 hoặc nhiều file PDF cùng lúc
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-center mb-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleStartWithBlankDocument}
+                    className="text-slate-600 bg-white border-slate-200 hover:bg-slate-50 flex items-center justify-center gap-1.5 text-xs font-semibold"
+                    icon={<Plus className="w-4 h-4 text-slate-500" />}
+                  >
+                    Bắt đầu với trang trắng mới
+                  </Button>
+                </div>
+
+                <div className="pt-6 border-t border-slate-100 flex items-center justify-center gap-6 text-xs text-slate-400 font-semibold">
+                  <span className="flex items-center gap-1.5">
+                    <Split className="w-4 h-4 text-teal-600" /> Tách trang tự do
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Merge className="w-4 h-4 text-emerald-600" /> Gộp file nhanh
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <PDFViewer 
+              pages={pages}
+              onTogglePage={togglePage}
+              onReorder={handleReorder}
+              onDeletePage={handleDeletePage}
+              onAddBlankPageAfter={handleAddBlankPageAfter}
+              onRotatePage={handleRotatePage}
+              onSelectRange={() => {}} // Not implemented for brevity, can be added later
+            />
+          )}
         </div>
 
         {/* Floating AI Toast/Hint */}
