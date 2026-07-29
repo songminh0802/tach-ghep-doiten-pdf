@@ -61,8 +61,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onAiSuggestFileName,
   isAiNaming
 }) => {
-  // Step 1: 'preview' (Xem trước & chọn trang) | Step 2: 'action' (Tách, Gộp, Đổi tên)
-  const [activeTab, setActiveTab] = useState<'preview' | 'action'>('preview');
+  // 4 Tabs: 'preview' (Xem trước) | 'rename' (Đổi tên) | 'split' (Tách file) | 'merge' (Gộp file)
+  const [activeTab, setActiveTab] = useState<'preview' | 'rename' | 'split' | 'merge'>('preview');
 
   // Reset to preview mode when loading a new file
   useEffect(() => {
@@ -96,32 +96,66 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* 2-Step Navigation Switcher (Xem trước ➔ Tách/Gộp/Đổi tên) */}
-      <div className="p-2.5 bg-slate-100/90 border-b border-slate-200/80">
-        <div className="grid grid-cols-2 p-1 bg-slate-200/70 rounded-xl gap-1">
+      {/* 4-Tab Navigation Switcher (Xem trước | Đổi tên | Tách file | Gộp file) */}
+      <div className="p-2 bg-slate-100/90 border-b border-slate-200/80">
+        <div className="grid grid-cols-4 p-1 bg-slate-200/70 rounded-xl gap-1">
           <button
             onClick={() => setActiveTab('preview')}
             className={clsx(
-              "flex items-center justify-center py-2 px-2.5 rounded-lg text-xs font-bold transition-all duration-200",
+              "flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-[11px] font-bold transition-all duration-200",
               activeTab === 'preview'
                 ? "bg-white text-teal-700 shadow-sm ring-1 ring-slate-200"
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
             )}
+            title="Xem trước & chọn trang"
           >
-            <Eye className="w-3.5 h-3.5 mr-1.5 shrink-0" />
-            <span className="truncate">1. Xem trước</span>
+            <Eye className="w-3.5 h-3.5 mb-0.5" />
+            <span className="truncate">Xem trước</span>
           </button>
+          
           <button
-            onClick={() => setActiveTab('action')}
+            onClick={() => setActiveTab('rename')}
             className={clsx(
-              "flex items-center justify-center py-2 px-2.5 rounded-lg text-xs font-bold transition-all duration-200",
-              activeTab === 'action'
+              "flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-[11px] font-bold transition-all duration-200 relative",
+              activeTab === 'rename'
                 ? "bg-white text-teal-700 shadow-sm ring-1 ring-slate-200"
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
             )}
+            title="Đặt tên / Đổi tên file xuất ra"
           >
-            <Wand2 className="w-3.5 h-3.5 mr-1.5 shrink-0" />
-            <span className="truncate">2. Tách / Gộp / Đổi tên</span>
+            <FileText className="w-3.5 h-3.5 mb-0.5" />
+            <span className="truncate">Đổi tên</span>
+            {!outputFileName.trim() && totalDocs > 0 && (
+              <span className="absolute top-1 right-2 w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('split')}
+            className={clsx(
+              "flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-[11px] font-bold transition-all duration-200",
+              activeTab === 'split'
+                ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+            )}
+            title="Tách thành các file lẻ hoặc tệp ZIP"
+          >
+            <FileStack className="w-3.5 h-3.5 mb-0.5" />
+            <span className="truncate">Tách file</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('merge')}
+            className={clsx(
+              "flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-[11px] font-bold transition-all duration-200",
+              activeTab === 'merge'
+                ? "bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+            )}
+            title="Gộp các trang đã chọn thành 1 file PDF"
+          >
+            <Merge className="w-3.5 h-3.5 mb-0.5" />
+            <span className="truncate">Gộp file</span>
           </button>
         </div>
       </div>
@@ -138,114 +172,98 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Chế độ chọn trang</span>
                 {selectionMode === SelectionMode.AI_AUTO && !isAiProcessing && (
                   <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
-                    AI Active
+                    AI Đã chọn
                   </span>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 p-1 bg-slate-100/90 border border-slate-200/80 rounded-xl gap-1">
+              <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl gap-1 border border-slate-200/60">
                 <button
-                  onClick={() => setSelectionMode(SelectionMode.MANUAL)}
+                  onClick={() => {
+                    setSelectionMode(SelectionMode.MANUAL);
+                    if (isAiProcessing) return;
+                  }}
                   className={clsx(
-                    "flex items-center justify-center py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-200",
+                    "flex items-center justify-center py-2 px-3 rounded-lg text-xs font-semibold transition-all",
                     selectionMode === SelectionMode.MANUAL
-                      ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/60"
-                      : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                      ? "bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/80"
+                      : "text-slate-600 hover:text-slate-900"
                   )}
                 >
-                  <MousePointer2 className="w-3.5 h-3.5 mr-1.5 text-teal-600" />
+                  <MousePointer2 className="w-3.5 h-3.5 mr-1.5" />
                   Thủ công
                 </button>
-                
                 <button
-                  onClick={onAiAutoSelect}
+                  onClick={() => {
+                    if (selectionMode === SelectionMode.AI_AUTO && !isAiProcessing) {
+                      onAiAutoSelect();
+                    } else {
+                      onAiAutoSelect();
+                    }
+                  }}
                   disabled={isAiProcessing || totalDocs === 0}
                   className={clsx(
-                    "flex items-center justify-center py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-200 relative overflow-hidden",
+                    "flex items-center justify-center py-2 px-3 rounded-lg text-xs font-semibold transition-all",
                     selectionMode === SelectionMode.AI_AUTO
-                      ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/20"
-                      : "text-slate-600 hover:text-emerald-700 hover:bg-white/50 disabled:opacity-50"
+                      ? "bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
                   )}
                 >
-                  <Sparkles className={clsx("w-3.5 h-3.5 mr-1.5", selectionMode === SelectionMode.AI_AUTO ? "text-white" : "text-emerald-600")} />
-                  AI Phân tích
+                  <Sparkles className={clsx("w-3.5 h-3.5 mr-1.5", isAiProcessing && "animate-spin")} />
+                  {isAiProcessing ? "AI Đang nghĩ..." : "AI Phân tích"}
                 </button>
               </div>
 
-              {/* AI Progress Card */}
-              {isAiProcessing && (
-                <div className="mt-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                  <div className="flex justify-between items-center text-xs font-medium text-emerald-700 mb-1.5">
-                    <span className="flex items-center gap-1.5 animate-pulse truncate mr-2">
-                      <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                      {processingState.message || "AI đang phân tích..."}
-                    </span>
-                    <span className="font-mono text-emerald-600">{Math.round(processingState.progress)}%</span>
-                  </div>
-                  <div className="w-full bg-emerald-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-emerald-600 h-full rounded-full transition-all duration-300"
-                      style={{ width: `${processingState.progress}%` }}
-                    />
-                  </div>
+              {/* AI Processing Status Message */}
+              {isAiProcessing && processingState.message && (
+                <div className="mt-2 text-xs text-teal-700 bg-teal-50 border border-teal-100 rounded-lg p-2 flex items-center justify-between">
+                  <span>{processingState.message}</span>
+                  <span className="font-bold">{Math.round(processingState.progress)}%</span>
                 </div>
               )}
             </section>
 
-            {/* Quick Toolbar: Select All, Deselect All, Add Blank Page */}
+            {/* Quick Actions (Select All, Deselect All, Add Blank Page) */}
             <section>
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                Thao tác nhanh
-              </span>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Thao tác nhanh</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={onSelectAll}
                   disabled={totalDocs === 0}
-                  className="flex flex-col items-center justify-center py-2 px-1.5 bg-slate-50 hover:bg-teal-50/70 border border-slate-200/80 hover:border-teal-200 rounded-xl text-slate-700 hover:text-teal-700 transition-all text-xs font-medium group disabled:opacity-50"
-                  title="Chọn tất cả trang"
+                  className="flex items-center justify-center py-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-200/80 text-xs font-semibold transition-colors disabled:opacity-50"
                 >
-                  <CheckCheck className="w-4 h-4 mb-1 text-slate-500 group-hover:text-teal-600 transition-colors" />
-                  <span>Chọn hết</span>
+                  <CheckCheck className="w-3.5 h-3.5 mr-1.5 text-teal-600" />
+                  Chọn hết
                 </button>
-                
                 <button
                   onClick={onDeselectAll}
-                  disabled={totalDocs === 0}
-                  className="flex flex-col items-center justify-center py-2 px-1.5 bg-slate-50 hover:bg-amber-50/70 border border-slate-200/80 hover:border-amber-200 rounded-xl text-slate-700 hover:text-amber-700 transition-all text-xs font-medium group disabled:opacity-50"
-                  title="Bỏ chọn tất cả trang"
+                  disabled={totalDocs === 0 || selectedCount === 0}
+                  className="flex items-center justify-center py-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-200/80 text-xs font-semibold transition-colors disabled:opacity-50"
                 >
-                  <RotateCcw className="w-4 h-4 mb-1 text-slate-500 group-hover:text-amber-600 transition-colors" />
-                  <span>Bỏ chọn</span>
-                </button>
-
-                <button
-                  onClick={onAddBlankPage}
-                  disabled={totalDocs === 0}
-                  className="flex flex-col items-center justify-center py-2 px-1.5 bg-teal-50/50 hover:bg-teal-100/70 border border-teal-200/80 hover:border-teal-300 rounded-xl text-teal-700 transition-all text-xs font-semibold group disabled:opacity-50"
-                  title="Thêm một trang trắng vào cuối file"
-                >
-                  <FilePlus className="w-4 h-4 mb-1 text-teal-600 group-hover:scale-110 transition-transform" />
-                  <span>+ Trang trắng</span>
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+                  Bỏ chọn
                 </button>
               </div>
+              
+              <button
+                onClick={onAddBlankPage}
+                disabled={totalDocs === 0}
+                className="w-full mt-2 flex items-center justify-center py-2.5 px-3 bg-teal-50/70 hover:bg-teal-50 text-teal-700 rounded-xl border border-teal-200/80 text-xs font-semibold transition-colors disabled:opacity-50"
+              >
+                <FilePlus className="w-4 h-4 mr-1.5 text-teal-600" />
+                + Trang trắng chèn vào cuối
+              </button>
             </section>
 
             {/* Selected Summary Card */}
-            <div className="p-3.5 bg-gradient-to-br from-teal-500/10 via-emerald-500/5 to-slate-50/80 border border-teal-200/60 rounded-xl shadow-2xs">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
-                  Đã chọn:
+            <div className="p-3.5 bg-gradient-to-br from-slate-50 to-teal-50/40 border border-slate-200/80 rounded-2xl">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-bold text-slate-700">Đang chọn xuất file:</span>
+                <span className="text-xs font-bold text-teal-700 bg-teal-100/80 px-2 py-0.5 rounded-full">
+                  {selectedCount} / {totalDocs} trang
                 </span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-lg font-extrabold text-teal-600">{selectedCount}</span>
-                  <span className="text-xs font-medium text-slate-500">/ {totalDocs} trang</span>
-                  {totalDocs > 0 && (
-                    <span className="ml-1 text-[10px] font-bold text-teal-700 bg-teal-100 px-1.5 py-0.5 rounded">
-                      {Math.round((selectedCount / totalDocs) * 100)}%
-                    </span>
-                  )}
-                </div>
               </div>
               <div className="h-1.5 w-full bg-slate-200/80 rounded-full overflow-hidden">
                 <div 
@@ -264,21 +282,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </span>
               </div>
               <button
-                onClick={() => setActiveTab('action')}
+                onClick={() => setActiveTab('rename')}
                 className="text-[11px] font-bold text-teal-600 hover:text-teal-800 underline shrink-0 ml-2"
               >
                 Đổi tên
               </button>
             </div>
 
-            {/* CTA Button to proceed to Step 2 */}
+            {/* CTA Button to proceed to Step 2 (Rename) */}
             <div className="pt-2">
               <button
-                onClick={() => setActiveTab('action')}
+                onClick={() => setActiveTab('rename')}
                 disabled={selectedCount === 0}
                 className="w-full h-11 px-4 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <span>Tiếp theo: Tách / Gộp / Đổi tên</span>
+                <span>Tiếp theo: Đổi tên file</span>
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
               {selectedCount === 0 && (
@@ -290,8 +308,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
 
-        {/* ======================= TAB 2: TÁCH, GỘP & ĐỔI TÊN ======================= */}
-        {activeTab === 'action' && (
+        {/* ======================= TAB 2: ĐỔI TÊN FILE (RENAME TAB) ======================= */}
+        {activeTab === 'rename' && (
           <>
             {/* Selected Summary Badge / Back to Select */}
             <div className="p-3 bg-teal-50 border border-teal-200/70 rounded-xl flex items-center justify-between">
@@ -310,19 +328,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
 
-            {/* Step 1: Output File Name (Rename & AI Auto-Name) */}
-            <section className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3.5 space-y-2.5">
+            {/* Naming Studio Card */}
+            <section className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[11px] font-extrabold">1</span>
-                  Đặt tên / Đổi tên file
+                  Đặt tên / Đổi tên tài liệu
                 </span>
                 {!outputFileName.trim() ? (
-                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
                     ⚠️ Chưa có tên
                   </span>
                 ) : (
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
                     ✓ Sẵn sàng
                   </span>
                 )}
@@ -333,17 +351,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   onClick={onAiSuggestFileName}
                   disabled={isAiNaming || totalDocs === 0}
-                  className="w-full py-2 px-3 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 group"
+                  className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 group"
                   title="Nhờ AI xem nội dung file và tự động gợi ý tên file chuẩn gọn gàng"
                 >
-                  <Sparkles className={clsx("w-3.5 h-3.5", isAiNaming ? "animate-spin" : "group-hover:scale-110 transition-transform")} />
+                  <Sparkles className={clsx("w-4 h-4", isAiNaming ? "animate-spin" : "group-hover:scale-110 transition-transform")} />
                   <span>{isAiNaming ? "AI đang đọc tài liệu & đặt tên..." : "✨ Nhờ AI đặt tên theo nội dung file"}</span>
                 </button>
               )}
 
               {/* Manual Filename Input */}
               <div className={clsx(
-                "flex items-center bg-white border-2 rounded-xl px-3 py-2 transition-all shadow-2xs",
+                "flex items-center bg-white border-2 rounded-xl px-3 py-2.5 transition-all shadow-2xs",
                 !outputFileName.trim()
                   ? "border-amber-400 ring-2 ring-amber-100"
                   : "border-slate-200 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/15"
@@ -368,7 +386,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               
               {/* Quick Date Addition Pills */}
-              <div className="flex items-center flex-wrap gap-1.5 pt-0.5">
+              <div className="flex items-center flex-wrap gap-1.5 pt-1">
                 <span className="text-[11px] text-slate-500 mr-0.5 flex items-center gap-1 font-semibold">
                   <Calendar className="w-3.5 h-3.5 text-teal-600" /> Thêm ngày:
                 </span>
@@ -390,78 +408,177 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </button>
                 ))}
               </div>
+
+              {/* Complete Filename Preview Card */}
+              <div className="p-3 bg-white border border-slate-200/80 rounded-xl flex items-center justify-between shadow-2xs mt-2">
+                <div className="min-w-0">
+                  <span className="text-[10px] text-slate-400 font-semibold block">Tên file hoàn chỉnh khi xuất:</span>
+                  <span className="text-xs font-bold text-teal-900 truncate block mt-0.5">
+                    {outputFileName ? `${outputFileName}.pdf` : '⚠️ Chưa đặt tên file'}
+                  </span>
+                </div>
+              </div>
             </section>
 
-            {/* Step 2: Choose Function (Split / Merge / ZIP) */}
+            {/* Next Steps: Choice of Split or Merge */}
+            <section className="space-y-2 pt-1">
+              <span className="text-xs font-bold text-slate-700 block">Bước tiếp theo: Chọn chức năng xử lý</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setActiveTab('split')}
+                  disabled={selectedCount === 0}
+                  className="w-full py-3 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5"
+                >
+                  <FileStack className="w-4 h-4" />
+                  <span>Tách file ➔</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('merge')}
+                  disabled={selectedCount === 0}
+                  className="w-full py-3 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Merge className="w-4 h-4" />
+                  <span>Gộp file ➔</span>
+                </button>
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* ======================= TAB 3: TÁCH FILE (SPLIT TAB) ======================= */}
+        {activeTab === 'split' && (
+          <>
+            {/* Header info bar */}
+            <div className="p-3 bg-blue-50 border border-blue-200/70 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                <span className="text-xs font-semibold text-blue-900 truncate">
+                  📄 {outputFileName || 'Chưa đặt tên'} ({selectedCount} trang)
+                </span>
+              </div>
+              <button 
+                onClick={() => setActiveTab('rename')}
+                className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline shrink-0 ml-2"
+              >
+                Đổi tên
+              </button>
+            </div>
+
+            {/* Split Options */}
             <section className="space-y-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[11px] font-extrabold">2</span>
-                  Chọn chức năng xử lý
+                  <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[11px] font-extrabold">2</span>
+                  Chọn cách xuất file lẻ
                 </span>
               </div>
 
-              {/* Action 1: Gộp thành 1 file PDF */}
-              <div className="p-3.5 bg-gradient-to-br from-teal-50/90 to-emerald-50/50 border border-teal-200/80 rounded-xl hover:border-teal-300 transition-all shadow-2xs">
-                <div className="mb-2.5">
-                  <h4 className="text-xs font-bold text-teal-900 flex items-center gap-1.5">
-                    <Merge className="w-4 h-4 text-teal-600" />
-                    Gộp thành 1 file PDF
-                  </h4>
-                  <p className="text-[11px] text-teal-700/80 mt-0.5 leading-relaxed">
-                    Gộp {selectedCount} trang đã chọn thành 1 tài liệu PDF duy nhất
-                  </p>
-                </div>
-                <button 
-                  onClick={onSplit}
-                  disabled={selectedCount === 0}
-                  className="w-full h-9 px-4 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-lg font-semibold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed group"
-                >
-                  <Merge className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
-                  <span>Gộp & Tải xuống ngay</span>
-                </button>
-              </div>
-
-              {/* Action 2: Tách file lẻ */}
-              <div className="p-3.5 bg-blue-50/60 border border-blue-200/80 rounded-xl hover:border-blue-300 transition-all shadow-2xs">
-                <div className="mb-2.5">
+              {/* Option 1: Tách thành các file PDF rời */}
+              <div className="p-4 bg-gradient-to-br from-blue-50/90 to-sky-50/50 border border-blue-200/80 rounded-2xl hover:border-blue-300 transition-all shadow-2xs space-y-3">
+                <div>
                   <h4 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
                     <FileStack className="w-4 h-4 text-blue-600" />
-                    Tách thành các file rời
+                    Tách thành các file PDF rời
                   </h4>
-                  <p className="text-[11px] text-blue-700/80 mt-0.5 leading-relaxed">
-                    Mỗi trang đã chọn sẽ được xuất thành 1 file PDF độc lập
+                  <p className="text-[11px] text-blue-700/80 mt-1 leading-relaxed font-medium">
+                    Mỗi trang trong số {selectedCount} trang đã chọn sẽ được xuất thành 1 file PDF độc lập. Bạn có thể tải từng trang hoặc tất cả.
                   </p>
                 </div>
                 <button 
                   onClick={onExtractSeparate}
                   disabled={selectedCount === 0}
-                  className="w-full h-9 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-lg font-semibold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed group"
+                  className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed group"
                 >
                   <FileStack className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
-                  <span>Tách & Tải file lẻ</span>
+                  <span>Tách & Tải các file lẻ ({selectedCount} file)</span>
                 </button>
               </div>
 
-              {/* Action 3: Tải file ZIP */}
-              <div className="p-3.5 bg-indigo-50/60 border border-indigo-200/80 rounded-xl hover:border-indigo-300 transition-all shadow-2xs">
-                <div className="mb-2.5">
+              {/* Option 2: Tải trọn bộ gói nén .ZIP */}
+              <div className="p-4 bg-gradient-to-br from-indigo-50/90 to-purple-50/50 border border-indigo-200/80 rounded-2xl hover:border-indigo-300 transition-all shadow-2xs space-y-3">
+                <div>
                   <h4 className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
                     <Archive className="w-4 h-4 text-indigo-600" />
-                    Tải gói nén .ZIP
+                    Tải xuống trọn bộ gói .ZIP
                   </h4>
-                  <p className="text-[11px] text-indigo-700/80 mt-0.5 leading-relaxed">
-                    Đóng gói toàn bộ file đã tách vào 1 tệp .ZIP tiện lợi
+                  <p className="text-[11px] text-indigo-700/80 mt-1 leading-relaxed font-medium">
+                    Đóng gói toàn bộ {selectedCount} file đã tách vào 1 tệp .ZIP gọn gàng, thuận tiện cho lưu trữ và chia sẻ.
                   </p>
                 </div>
                 <button 
                   onClick={onExtractZip}
                   disabled={selectedCount === 0}
-                  className="w-full h-9 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg font-semibold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed group"
+                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed group"
                 >
                   <Archive className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
-                  <span>Tải xuống file .ZIP</span>
+                  <span>Tải xuống gói file .ZIP ({selectedCount} trang)</span>
                 </button>
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* ======================= TAB 4: GỘP FILE (MERGE TAB) ======================= */}
+        {activeTab === 'merge' && (
+          <>
+            {/* Header info bar */}
+            <div className="p-3 bg-emerald-50 border border-emerald-200/70 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span className="text-xs font-semibold text-emerald-900 truncate">
+                  📄 {outputFileName || 'Chưa đặt tên'} ({selectedCount} trang)
+                </span>
+              </div>
+              <button 
+                onClick={() => setActiveTab('rename')}
+                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 underline shrink-0 ml-2"
+              >
+                Đổi tên
+              </button>
+            </div>
+
+            {/* Merge Options */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[11px] font-extrabold">2</span>
+                  Gộp trang thành 1 file
+                </span>
+              </div>
+
+              <div className="p-4 bg-gradient-to-br from-emerald-50/90 to-teal-50/50 border border-emerald-200/80 rounded-2xl hover:border-emerald-300 transition-all shadow-2xs space-y-3">
+                <div>
+                  <h4 className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                    <Merge className="w-4 h-4 text-emerald-600" />
+                    Gộp thành 1 tài liệu PDF duy nhất
+                  </h4>
+                  <p className="text-[11px] text-emerald-700/80 mt-1 leading-relaxed font-medium">
+                    Gộp toàn bộ {selectedCount} trang đã được chọn (theo đúng thứ tự bạn sắp xếp) thành một tài liệu PDF hoàn chỉnh.
+                  </p>
+                </div>
+
+                {/* Output Filename indicator box */}
+                <div className="p-2.5 bg-white rounded-xl border border-emerald-200/60 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500 font-semibold">Tên file xuất ra:</span>
+                  <span className="text-xs font-bold text-emerald-800 truncate max-w-[170px]">
+                    {outputFileName ? `${outputFileName}.pdf` : '⚠️ Chưa đặt tên'}
+                  </span>
+                </div>
+
+                <button 
+                  onClick={onSplit}
+                  disabled={selectedCount === 0 || !outputFileName.trim()}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed group"
+                >
+                  <Merge className="w-4 h-4 transition-transform group-hover:scale-110" />
+                  <span>Gộp & Tải xuống 1 file PDF</span>
+                </button>
+
+                {!outputFileName.trim() && (
+                  <p className="text-[11px] text-center text-amber-600 font-semibold mt-1">
+                    ⚠️ Vui lòng qua tab "Đổi tên" để đặt tên file trước khi gộp
+                  </p>
+                )}
               </div>
             </section>
           </>
@@ -470,13 +587,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Common Footer Actions */}
       <div className="p-4 border-t border-slate-200/80 bg-slate-50/80 space-y-2 shrink-0">
-        {activeTab === 'action' && (
+        {activeTab !== 'preview' && (
           <button 
-            onClick={() => setActiveTab('preview')}
+            onClick={() => {
+              if (activeTab === 'rename') setActiveTab('preview');
+              else setActiveTab('rename');
+            }}
             className="w-full flex items-center justify-center text-xs text-slate-600 hover:text-teal-700 py-1.5 transition-colors font-semibold gap-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Quay lại chế độ Xem trước
+            {activeTab === 'rename' ? 'Quay lại chế độ Xem trước' : 'Quay lại Đổi tên file'}
           </button>
         )}
         <button 
