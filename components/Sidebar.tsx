@@ -184,7 +184,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div>
               <h4 className="text-xs font-bold text-teal-900">Chưa có tài liệu nào</h4>
               <p className="text-[11px] text-teal-700/80 mt-0.5">
-                Tải file PDF lên ở vùng làm việc bên phải để bắt đầu
+                Tải file PDF hoặc Ảnh (JPG, PNG...) lên để bắt đầu
               </p>
             </div>
             {onUploadFile && (
@@ -192,13 +192,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <input
                   type="file"
                   multiple
-                  accept="application/pdf"
+                  accept="application/pdf,image/*,.jpg,.jpeg,.png,.webp"
                   onChange={onUploadFile}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                 />
                 <button className="w-full py-2.5 px-3 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5">
                   <UploadCloud className="w-3.5 h-3.5" />
-                  <span>Chọn file PDF ngay</span>
+                  <span>Chọn file PDF / Ảnh ngay</span>
                 </button>
               </div>
             )}

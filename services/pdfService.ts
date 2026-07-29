@@ -171,3 +171,76 @@ export const createZipFromFiles = async (
   });
   return await zip.generateAsync({ type: "blob" });
 };
+
+export const convertImageToPDF = async (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = async () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width || 800;
+        canvas.height = img.height || 1100;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Cannot get 2D context');
+        
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        const base64Data = dataUrl.split(',')[1];
+        const binaryString = window.atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        const pdfDoc = await PDFDocument.create();
+        const jpgImage = await pdfDoc.embedJpg(bytes);
+        const page = pdfDoc.addPage([jpgImage.width, jpgImage.height]);
+        page.drawImage(jpgImage, {
+          x: 0,
+          y: 0,
+          width: jpgImage.width,
+          height: jpgImage.height,
+        });
+
+        const pdfBytes = await pdfDoc.save();
+        const baseName = file.name.replace(/\.[^/.]+$/, '');
+        const newFileName = `${baseName}.pdf`;
+        const pdfFile = new File([pdfBytes], newFileName, { type: 'application/pdf' });
+        URL.revokeObjectURL(url);
+        resolve(pdfFile);
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        reject(err);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Không thể đọc file ảnh: ' + file.name));
+    };
+    img.src = url;
+  });
+};
+
+export const normalizeUploadedFiles = async (
+  files: File[],
+  onProgress?: (message: string) => void
+): Promise<File[]> => {
+  const result: File[] = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      result.push(file);
+    } else if (
+      file.type.startsWith('image/') ||
+      /\.(jpg|jpeg|png|webp|bmp|gif|tiff|heic)$/i.test(file.name)
+    ) {
+      if (onProgress) onProgress(`Đang chuyển file ảnh "${file.name}" sang PDF...`);
+      const pdfFile = await convertImageToPDF(file);
+      result.push(pdfFile);
+    }
+  }
+  return result;
+};

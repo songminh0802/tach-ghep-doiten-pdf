@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { UploadCloud, AlertCircle, Sparkles, RefreshCw, Download, Split, Merge, FileStack, FileText, Plus, Eye, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { PDFViewer } from './components/PDFViewer';
-import { loadPDFAndRenderThumbnails, splitPDF, extractSeparatePages, createZipFromPages, mergePDFs, createBlankPDF, createZipFromFiles } from './services/pdfService';
+import { loadPDFAndRenderThumbnails, splitPDF, extractSeparatePages, createZipFromPages, mergePDFs, createBlankPDF, createZipFromFiles, normalizeUploadedFiles } from './services/pdfService';
 import { analyzeSplitPoints, suggestFileNameWithAI } from './services/geminiService';
 import { PDFPage, SelectionMode, ProcessingState, UploadedFileItem } from './types';
 import { Button } from './components/Button';
@@ -31,35 +31,47 @@ const App: React.FC = () => {
     
     // Explicitly cast to File[] to avoid 'unknown' type inference issues from Array.from(fileList)
     const files = Array.from(fileList) as File[];
-    const nonPdf = files.find(f => f.type !== 'application/pdf');
+    const unsupported = files.find(f => 
+      f.type !== 'application/pdf' && 
+      !f.type.startsWith('image/') &&
+      !/\.(pdf|jpg|jpeg|png|webp|bmp|gif|tiff|heic)$/i.test(f.name)
+    );
 
-    if (nonPdf) {
-      setError('Vui lòng chỉ tải lên file PDF.');
+    if (unsupported) {
+      setError('Vui lòng chỉ tải lên file PDF hoặc hình ảnh (JPG, PNG, WEBP...).');
       return;
     }
 
-    setProcessingState({ isProcessing: true, message: files.length > 1 ? 'Đang ghép nối các file...' : 'Đang đọc PDF...', progress: 0 });
+    setProcessingState({ isProcessing: true, message: files.length > 1 ? 'Đang chuẩn bị và ghép nối tài liệu...' : 'Đang xử lý tài liệu...', progress: 0 });
     setError(null);
 
     try {
+      const normalizedFiles = await normalizeUploadedFiles(files, (msg) => {
+        setProcessingState(prev => ({ ...prev, message: msg }));
+      });
+      if (normalizedFiles.length === 0) return;
+
       let targetFile: File;
       
-      if (files.length > 1) {
-        targetFile = await mergePDFs(files);
+      if (normalizedFiles.length > 1) {
+        targetFile = await mergePDFs(normalizedFiles);
         setProcessingState(prev => ({ ...prev, message: 'Đang tạo thumbnails...' }));
       } else {
-        targetFile = files[0];
+        targetFile = normalizedFiles[0];
       }
       
       setFile(targetFile);
       setOutputFileName(targetFile.name.replace(/\.pdf$/i, ''));
 
-      const items: UploadedFileItem[] = files.map((f, index) => ({
-        id: `${f.name}-${index}-${Date.now()}`,
-        file: f,
-        originalName: f.name,
-        customName: f.name.replace(/\.pdf$/i, ''),
-      }));
+      const items: UploadedFileItem[] = normalizedFiles.map((f, index) => {
+        const origName = files[index] ? files[index].name : f.name;
+        return {
+          id: `${f.name}-${index}-${Date.now()}`,
+          file: f,
+          originalName: origName,
+          customName: origName.replace(/\.(pdf|jpg|jpeg|png|webp|bmp|gif|tiff|heic)$/i, ''),
+        };
+      });
       setUploadedFiles(items);
 
       const loadedPages = await loadPDFAndRenderThumbnails(targetFile, (percent) => {
@@ -546,13 +558,13 @@ const App: React.FC = () => {
                     <input
                       type="file"
                       multiple
-                      accept="application/pdf"
+                      accept="application/pdf,image/*,.jpg,.jpeg,.png,.webp"
                       onChange={handleFileChange}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                     />
                     <button className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-lg text-xs font-extrabold transition-all shadow-2xs">
                       <UploadCloud className="w-3.5 h-3.5" />
-                      <span>+ Tải file PDF lên</span>
+                      <span>+ Tải PDF / Ảnh lên</span>
                     </button>
                   </div>
                 ) : (
@@ -596,26 +608,26 @@ const App: React.FC = () => {
                 </div>
                 
                 <h2 className="text-2xl font-bold text-slate-800 mb-2">
-                  Tải file PDF lên để xử lý
+                  Tải file PDF hoặc Hình ảnh lên để xử lý
                 </h2>
                 <p className="text-slate-500 mb-8 max-w-sm mx-auto text-xs leading-relaxed font-medium">
-                  Bạn đã vào sẵn giao diện làm việc. Hãy kéo thả file PDF vào đây hoặc chọn từ máy tính để bắt đầu <b>Xem trước</b>, <b>Đổi tên</b>, <b>Tách</b> hoặc <b>Gộp</b>.
+                  Bạn đã vào sẵn giao diện làm việc. Hãy kéo thả file <b>PDF</b> hoặc <b>Hình ảnh (JPG, PNG...)</b> vào đây hoặc chọn từ máy tính để bắt đầu <b>Xem trước</b>, <b>Đổi tên</b>, <b>Tách</b> hoặc <b>Gộp</b>.
                 </p>
 
                 <div className="relative group cursor-pointer max-w-sm mx-auto mb-4">
                   <input
                     type="file"
                     multiple
-                    accept="application/pdf"
+                    accept="application/pdf,image/*,.jpg,.jpeg,.png,.webp"
                     onChange={handleFileChange}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                   />
                   <div className="border-2 border-dashed border-teal-300 bg-teal-50/40 hover:bg-teal-50/80 rounded-2xl p-6 transition-all duration-300 group-hover:border-teal-500">
                     <Button size="lg" className="w-full pointer-events-none font-bold" icon={<UploadCloud className="w-5 h-5"/>}>
-                      Chọn File PDF từ máy tính
+                      Chọn File PDF / Ảnh từ máy tính
                     </Button>
                     <p className="mt-2 text-[11px] text-teal-700 font-semibold">
-                      Hỗ trợ chọn 1 hoặc nhiều file PDF cùng lúc
+                      Hỗ trợ chọn 1 hoặc nhiều file PDF & Hình ảnh cùng lúc
                     </p>
                   </div>
                 </div>
