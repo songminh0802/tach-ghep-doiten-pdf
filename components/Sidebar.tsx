@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { Button } from './Button';
+import React from 'react';
 import { SelectionMode, ProcessingState } from '../types';
 import { 
   Sparkles, 
@@ -9,7 +8,11 @@ import {
   Archive,
   Merge,
   FileStack,
-  Plus
+  FilePlus,
+  CheckCheck,
+  RotateCcw,
+  FileText,
+  Calendar
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -51,206 +54,250 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setOutputFileName
 }) => {
   return (
-    <aside className="w-full lg:w-80 bg-white border-l border-slate-200 flex flex-col h-full shadow-xl z-20">
-      <div className="p-6 border-b border-slate-100">
-        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-          <Split className="w-6 h-6 text-teal-600" />
-          SmartSplit PDF
-        </h2>
-        <p className="text-sm text-slate-500 mt-1">
-          {totalDocs > 0 ? `${totalDocs} trang được tải lên` : 'Chờ tải file...'}
-        </p>
+    <aside className="w-full lg:w-80 bg-white border-r border-slate-200/80 flex flex-col h-full shadow-lg z-20 shrink-0 select-none">
+      {/* Brand Header - Compact & Clean */}
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-600 flex items-center justify-center text-white shadow-md shadow-teal-500/20 ring-1 ring-white/20 shrink-0">
+            <Split className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
+              SmartSplit <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200/60">PRO</span>
+            </h2>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+              {totalDocs > 0 ? `${totalDocs} trang đã tải lên` : 'Chờ tải file...'}
+            </p>
+          </div>
+        </div>
+        
+        {totalDocs > 0 && (
+          <span className="bg-slate-100 text-slate-700 text-xs font-semibold px-2.5 py-1 rounded-full border border-slate-200/80 shrink-0">
+            {totalDocs} trang
+          </span>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
+      {/* Scrollable Main Area - Compact Vertical Spacing */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
         
-        {/* Selection Tools */}
+        {/* Selection Mode (Segmented Control / Tabs) */}
         <section>
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">
-            Chế độ chọn
-          </h3>
-          <div className="space-y-2">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Chế độ chọn trang</span>
+            {selectionMode === SelectionMode.AI_AUTO && !isAiProcessing && (
+              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                AI Active
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 p-1 bg-slate-100/90 border border-slate-200/80 rounded-xl gap-1">
             <button
               onClick={() => setSelectionMode(SelectionMode.MANUAL)}
               className={clsx(
-                "w-full flex items-center p-3 rounded-lg text-sm font-medium transition-all border",
+                "flex items-center justify-center py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-200",
                 selectionMode === SelectionMode.MANUAL
-                  ? "bg-teal-50 border-teal-200 text-teal-700"
-                  : "bg-white border-slate-200 text-slate-600 hover:border-teal-300 hover:bg-slate-50"
+                  ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/60"
+                  : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
               )}
             >
-              <MousePointer2 className="w-4 h-4 mr-3" />
-              Thủ công (Click từng trang)
+              <MousePointer2 className="w-3.5 h-3.5 mr-1.5 text-teal-600" />
+              Thủ công
             </button>
             
             <button
               onClick={onAiAutoSelect}
               disabled={isAiProcessing || totalDocs === 0}
               className={clsx(
-                "w-full flex items-center p-3 rounded-lg text-sm font-medium transition-all border relative overflow-hidden min-h-[60px]",
+                "flex items-center justify-center py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-200 relative overflow-hidden",
                 selectionMode === SelectionMode.AI_AUTO
-                  ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                  : "bg-white border-slate-200 text-slate-600 hover:border-emerald-300 hover:bg-slate-50"
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/20"
+                  : "text-slate-600 hover:text-emerald-700 hover:bg-white/50 disabled:opacity-50"
               )}
             >
-              {isAiProcessing ? (
-                <div className="absolute inset-0 bg-white/95 z-10 flex flex-col justify-center px-4 py-2">
-                    <div className="flex justify-between items-center mb-1.5 w-full">
-                         <span className="text-xs font-bold text-emerald-600 animate-pulse truncate mr-2">
-                            {processingState.message || "Đang xử lý..."}
-                         </span>
-                         <span className="text-xs font-mono text-emerald-500">{Math.round(processingState.progress)}%</span>
-                    </div>
-                    <div className="w-full bg-emerald-100 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                            className="bg-emerald-600 h-full rounded-full transition-all duration-300"
-                            style={{ width: `${processingState.progress}%` }}
-                        />
-                    </div>
-                </div>
-              ) : (
-                 <>
-                  <Sparkles className={clsx("w-4 h-4 mr-3 shrink-0", "text-emerald-600")} />
-                  <div className="text-left">
-                    <span className="block">AI Phân Tích Thông Minh</span>
-                    <span className="text-xs font-normal opacity-70">Tự động phát hiện chương/bài</span>
-                  </div>
-                 </>
-              )}
+              <Sparkles className={clsx("w-3.5 h-3.5 mr-1.5", selectionMode === SelectionMode.AI_AUTO ? "text-white" : "text-emerald-600")} />
+              AI Phân tích
+            </button>
+          </div>
+
+          {/* AI Progress Card */}
+          {isAiProcessing && (
+            <div className="mt-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <div className="flex justify-between items-center text-xs font-medium text-emerald-700 mb-1.5">
+                <span className="flex items-center gap-1.5 animate-pulse truncate mr-2">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  {processingState.message || "AI đang phân tích..."}
+                </span>
+                <span className="font-mono text-emerald-600">{Math.round(processingState.progress)}%</span>
+              </div>
+              <div className="w-full bg-emerald-100 rounded-full h-1.5 overflow-hidden">
+                <div 
+                  className="bg-emerald-600 h-full rounded-full transition-all duration-300"
+                  style={{ width: `${processingState.progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Quick Toolbar: Select All, Deselect All, Add Blank Page */}
+        <section>
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+            Thao tác nhanh
+          </span>
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              onClick={onSelectAll}
+              disabled={totalDocs === 0}
+              className="flex flex-col items-center justify-center py-2 px-1.5 bg-slate-50 hover:bg-teal-50/70 border border-slate-200/80 hover:border-teal-200 rounded-xl text-slate-700 hover:text-teal-700 transition-all text-xs font-medium group disabled:opacity-50"
+              title="Chọn tất cả trang"
+            >
+              <CheckCheck className="w-4 h-4 mb-1 text-slate-500 group-hover:text-teal-600 transition-colors" />
+              <span>Chọn hết</span>
+            </button>
+            
+            <button
+              onClick={onDeselectAll}
+              disabled={totalDocs === 0}
+              className="flex flex-col items-center justify-center py-2 px-1.5 bg-slate-50 hover:bg-amber-50/70 border border-slate-200/80 hover:border-amber-200 rounded-xl text-slate-700 hover:text-amber-700 transition-all text-xs font-medium group disabled:opacity-50"
+              title="Bỏ chọn tất cả trang"
+            >
+              <RotateCcw className="w-4 h-4 mb-1 text-slate-500 group-hover:text-amber-600 transition-colors" />
+              <span>Bỏ chọn</span>
+            </button>
+
+            <button
+              onClick={onAddBlankPage}
+              disabled={totalDocs === 0}
+              className="flex flex-col items-center justify-center py-2 px-1.5 bg-teal-50/50 hover:bg-teal-100/70 border border-teal-200/80 hover:border-teal-300 rounded-xl text-teal-700 transition-all text-xs font-semibold group disabled:opacity-50"
+              title="Thêm một trang trắng vào cuối file"
+            >
+              <FilePlus className="w-4 h-4 mb-1 text-teal-600 group-hover:scale-110 transition-transform" />
+              <span>+ Trang trắng</span>
             </button>
           </div>
         </section>
 
-        {/* Quick Actions */}
-        <section>
-           <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">
-            Thao tác nhanh
-          </h3>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onSelectAll} className="flex-1">
-                Tất cả
-            </Button>
-            <Button variant="outline" size="sm" onClick={onDeselectAll} className="flex-1">
-                Bỏ chọn
-            </Button>
+        {/* Selected Summary Card */}
+        <div className="p-3.5 bg-gradient-to-br from-teal-500/10 via-emerald-500/5 to-slate-50/80 border border-teal-200/60 rounded-xl shadow-2xs">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
+              Đã chọn:
+            </span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-extrabold text-teal-600">{selectedCount}</span>
+              <span className="text-xs font-medium text-slate-500">/ {totalDocs} trang</span>
+              {totalDocs > 0 && (
+                <span className="ml-1 text-[10px] font-bold text-teal-700 bg-teal-100 px-1.5 py-0.5 rounded">
+                  {Math.round((selectedCount / totalDocs) * 100)}%
+                </span>
+              )}
+            </div>
           </div>
-        </section>
-
-        {/* Edit Options */}
-        <section>
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">
-            Chỉnh sửa trang
-          </h3>
-          <Button
-            variant="outline"
-            className="w-full justify-center text-teal-700 bg-white hover:bg-teal-50 border-teal-200 flex items-center gap-2 font-medium"
-            onClick={onAddBlankPage}
-            icon={<Plus className="w-4 h-4 text-teal-600" />}
-          >
-            Thêm trang trắng
-          </Button>
-        </section>
-
-        {/* Summary */}
-        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-            <div className="flex justify-between items-center mb-2">
-                <span className="text-sm text-slate-600">Đã chọn:</span>
-                <span className="text-lg font-bold text-teal-600">{selectedCount} <span className="text-sm font-normal text-slate-500">trang</span></span>
-            </div>
-            <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
-                <div 
-                    className="h-full bg-teal-500 transition-all duration-300"
-                    style={{ width: `${totalDocs > 0 ? (selectedCount / totalDocs) * 100 : 0}%`}}
-                />
-            </div>
+          <div className="h-1.5 w-full bg-slate-200/80 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-teal-500 to-emerald-500 transition-all duration-300 rounded-full"
+              style={{ width: `${totalDocs > 0 ? (selectedCount / totalDocs) * 100 : 0}%`}}
+            />
+          </div>
         </div>
         
-        {/* Output Name */}
+        {/* Output File Name & Compact Date Badges */}
         <section>
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
             Tên file xuất ra
-          </h3>
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-2 focus-within:border-teal-400 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
+          </span>
+          <div className="flex items-center bg-white border border-slate-200/80 rounded-xl px-3 py-2 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/15 transition-all shadow-2xs">
+            <FileText className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
             <input 
-               type="text" 
-               value={outputFileName}
-               onChange={(e) => setOutputFileName(e.target.value)}
-               className="w-full text-sm outline-none text-slate-700 bg-transparent placeholder-slate-400"
-               placeholder="Nhập tên file (VD: tailieu.pdf)"
+              type="text" 
+              value={outputFileName}
+              onChange={(e) => setOutputFileName(e.target.value)}
+              className="w-full text-xs outline-none text-slate-700 bg-transparent placeholder-slate-400 font-medium"
+              placeholder="Nhập tên file (VD: tailieu.pdf)"
             />
           </div>
           
-          <div className="flex flex-wrap gap-2 mt-3">
-            <span className="text-xs text-slate-500 w-full mb-1">Chèn nhanh thời gian:</span>
+          <div className="flex items-center flex-wrap gap-1.5 mt-2">
+            <span className="text-[11px] text-slate-400 mr-0.5 flex items-center gap-1">
+              <Calendar className="w-3 h-3" /> Ngày:
+            </span>
             {[
-                { label: 'Năm', prefix: () => `${new Date().getFullYear()}_` },
-                { label: 'Tháng', prefix: () => `${String(new Date().getMonth() + 1).padStart(2, '0')}_` },
-                { label: 'Ngày', prefix: () => `${String(new Date().getDate()).padStart(2, '0')}_` },
-                { label: 'Năm-Tháng-Ngày', prefix: () => `${new Date().getFullYear()}_${String(new Date().getMonth() + 1).padStart(2, '0')}_${String(new Date().getDate()).padStart(2, '0')}_` }
+              { label: 'Năm', prefix: () => `${new Date().getFullYear()}_` },
+              { label: 'Tháng', prefix: () => `${String(new Date().getMonth() + 1).padStart(2, '0')}_` },
+              { label: 'Ngày', prefix: () => `${String(new Date().getDate()).padStart(2, '0')}_` },
+              { label: 'Y-M-D', prefix: () => `${new Date().getFullYear()}_${String(new Date().getMonth() + 1).padStart(2, '0')}_${String(new Date().getDate()).padStart(2, '0')}_` }
             ].map(item => (
-                <button
-                   key={item.label}
-                   onClick={() => {
-                       const currentVal = outputFileName.trim();
-                       setOutputFileName(`${item.prefix()}${currentVal}`);
-                   }}
-                   className="text-xs bg-slate-100 hover:bg-teal-50 text-slate-600 hover:text-teal-600 px-2.5 py-1.5 rounded-md border border-slate-200 transition-colors font-medium"
-                >
-                   + {item.label}
-                </button>
+              <button
+                key={item.label}
+                onClick={() => {
+                  const currentVal = outputFileName.trim();
+                  setOutputFileName(`${item.prefix()}${currentVal}`);
+                }}
+                className="text-[11px] bg-slate-100 hover:bg-teal-50 text-slate-600 hover:text-teal-700 hover:border-teal-200 px-2 py-0.5 rounded-md border border-slate-200/80 transition-all font-medium active:scale-95"
+              >
+                +{item.label}
+              </button>
             ))}
           </div>
         </section>
       </div>
 
-      {/* Footer Actions */}
-      <div className="p-6 border-t border-slate-200 bg-slate-50 space-y-3">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-            Xuất file
-        </h3>
+      {/* Footer Export Actions - Compact, High-Contrast Hierarchy */}
+      <div className="p-4 border-t border-slate-200/80 bg-slate-50/80 space-y-2.5 shrink-0">
+        <div className="flex items-center justify-between mb-0.5">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            Xuất file PDF
+          </span>
+          <span className="text-[11px] font-medium text-slate-500">
+            {selectedCount} trang được chọn
+          </span>
+        </div>
         
-        {/* Option 1: Merge selected into one file */}
-        <Button 
-            className="w-full justify-start" 
-            size="lg" 
-            onClick={onSplit}
-            disabled={selectedCount === 0}
-            icon={<Merge className="w-5 h-5"/>}
+        {/* Option 1: Primary action (Merge into 1 PDF) */}
+        <button 
+          onClick={onSplit}
+          disabled={selectedCount === 0}
+          className="w-full h-10 px-4 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-semibold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed group"
         >
-          Gộp thành 1 file
-        </Button>
+          <Merge className="w-4 h-4 transition-transform group-hover:scale-110" />
+          <span>Gộp thành 1 file PDF</span>
+        </button>
         
-        {/* Option 2: Extract each page as separate file */}
-        <Button 
-            className="w-full justify-start" 
-            variant="blue"
-            size="lg" 
+        {/* Option 2 & 3: Secondary actions side-by-side (Extract Separate & Download ZIP) */}
+        <div className="grid grid-cols-2 gap-2">
+          <button 
             onClick={onExtractSeparate}
             disabled={selectedCount === 0}
-            icon={<FileStack className="w-5 h-5"/>}
-        >
-            Tách thành các file riêng lẻ
-        </Button>
+            title="Tách thành các file PDF riêng lẻ"
+            className="w-full h-9 px-2.5 bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50/60 text-slate-700 hover:text-blue-700 disabled:bg-slate-50 disabled:text-slate-400 rounded-xl font-medium text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed group"
+          >
+            <FileStack className="w-3.5 h-3.5 text-blue-600 shrink-0 group-hover:scale-110 transition-transform" />
+            <span className="truncate">Tách file lẻ</span>
+          </button>
 
-        {/* Option 3: Download ZIP */}
-        <Button 
-            variant="indigo"
-            className="w-full justify-start" 
-            size="lg" 
+          <button 
             onClick={onExtractZip}
             disabled={selectedCount === 0}
-            icon={<Archive className="w-5 h-5"/>}
-        >
-            Tải xuống file ZIP
-        </Button>
+            title="Tải xuống trọn bộ file dạng nén .ZIP"
+            className="w-full h-9 px-2.5 bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/60 text-slate-700 hover:text-indigo-700 disabled:bg-slate-50 disabled:text-slate-400 rounded-xl font-medium text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed group"
+          >
+            <Archive className="w-3.5 h-3.5 text-indigo-600 shrink-0 group-hover:scale-110 transition-transform" />
+            <span className="truncate">Tải file ZIP</span>
+          </button>
+        </div>
 
-        <div className="pt-2">
-            <button 
-                onClick={onReset}
-                className="w-full flex items-center justify-center text-xs text-slate-400 hover:text-red-600 py-2 transition-colors"
-            >
-                <Trash2 className="w-3 h-3 mr-1" /> Hủy & Tải file mới
-            </button>
+        {/* Reset Action */}
+        <div className="pt-1">
+          <button 
+            onClick={onReset}
+            className="w-full flex items-center justify-center text-xs text-slate-400 hover:text-red-600 py-1 transition-colors group font-medium"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1.5 transition-transform group-hover:scale-110" /> 
+            <span>Hủy & Tải file mới</span>
+          </button>
         </div>
       </div>
     </aside>
