@@ -3,14 +3,15 @@ import { createRoot } from 'react-dom/client';
 import { UploadCloud, AlertCircle, Sparkles, RefreshCw, Download, Split, Merge, FileStack, FileText, Plus, Eye, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { PDFViewer } from './components/PDFViewer';
-import { loadPDFAndRenderThumbnails, splitPDF, extractSeparatePages, createZipFromPages, mergePDFs, createBlankPDF } from './services/pdfService';
+import { loadPDFAndRenderThumbnails, splitPDF, extractSeparatePages, createZipFromPages, mergePDFs, createBlankPDF, createZipFromFiles } from './services/pdfService';
 import { analyzeSplitPoints, suggestFileNameWithAI } from './services/geminiService';
-import { PDFPage, SelectionMode, ProcessingState } from './types';
+import { PDFPage, SelectionMode, ProcessingState, UploadedFileItem } from './types';
 import { Button } from './components/Button';
 
 const App: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [pages, setPages] = useState<PDFPage[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFileItem[]>([]);
   const [selectionMode, setSelectionMode] = useState<SelectionMode>(SelectionMode.MANUAL);
   const [processingState, setProcessingState] = useState<ProcessingState>({
     isProcessing: false,
@@ -51,7 +52,15 @@ const App: React.FC = () => {
       }
       
       setFile(targetFile);
-      setOutputFileName(targetFile.name);
+      setOutputFileName(targetFile.name.replace(/\.pdf$/i, ''));
+
+      const items: UploadedFileItem[] = files.map((f, index) => ({
+        id: `${f.name}-${index}-${Date.now()}`,
+        file: f,
+        originalName: f.name,
+        customName: f.name.replace(/\.pdf$/i, ''),
+      }));
+      setUploadedFiles(items);
 
       const loadedPages = await loadPDFAndRenderThumbnails(targetFile, (percent) => {
         setProcessingState(prev => ({ ...prev, progress: percent }));
@@ -138,17 +147,93 @@ const App: React.FC = () => {
     }
   };
 
-  // AI Automatic Naming Handler based on document content
-  const handleAiSuggestFileName = async () => {
-    if (pages.length === 0) return;
+  const handleRenameUploadedFile = (id: string, newName: string) => {
+    setUploadedFiles(prev => prev.map(item =>
+      item.id === id ? { ...item, customName: newName } : item
+    ));
+    if (uploadedFiles.length <= 1 || uploadedFiles[0]?.id === id) {
+      setOutputFileName(newName);
+    }
+  };
+
+  const handleDownloadUploadedFile = (item: UploadedFileItem) => {
+    const url = URL.createObjectURL(item.file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${item.customName.trim() || 'Tai_lieu'}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadAllUploadedFilesZip = async () => {
+    if (uploadedFiles.length === 0) return;
+    setProcessingState({ isProcessing: true, message: 'Đang tạo file ZIP tải về...', progress: 50 });
+    try {
+      const zipBlob = await createZipFromFiles(
+        uploadedFiles.map(item => ({
+          file: item.file,
+          name: item.customName.trim() || 'Tai_lieu',
+        }))
+      );
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Danh_sach_${uploadedFiles.length}_file_da_doi_ten.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError('Lỗi khi tạo file ZIP: ' + err.message);
+    } finally {
+      setProcessingState({ isProcessing: false, message: '', progress: 0 });
+    }
+  };
+
+  const handleAiSuggestNameForItem = async (item: UploadedFileItem) => {
     setIsAiNaming(true);
     try {
-      const thumbnails = pages.slice(0, 5).map(p => p.thumbnailUrl);
-      const suggestedName = await suggestFileNameWithAI(thumbnails, file?.name || outputFileName || 'Tai_lieu');
-      setOutputFileName(suggestedName);
+      const itemPages = await loadPDFAndRenderThumbnails(item.file);
+      const thumbnails = itemPages.slice(0, 5).map(p => p.thumbnailUrl);
+      const suggestedName = await suggestFileNameWithAI(thumbnails, item.originalName);
+      handleRenameUploadedFile(item.id, suggestedName);
+    } catch (err) {
+      console.error(err);
+      const fallback = item.originalName.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9\u00C0-\u1EF9]/g, '_');
+      handleRenameUploadedFile(item.id, fallback);
+    } finally {
+      setIsAiNaming(false);
+    }
+  };
+
+  // AI Automatic Naming Handler based on document content
+  const handleAiSuggestFileName = async () => {
+    if (pages.length === 0 && uploadedFiles.length === 0) return;
+    setIsAiNaming(true);
+    try {
+      if (uploadedFiles.length > 1) {
+        for (const item of uploadedFiles) {
+          try {
+            const itemPages = await loadPDFAndRenderThumbnails(item.file);
+            const thumbnails = itemPages.slice(0, 5).map(p => p.thumbnailUrl);
+            const suggestedName = await suggestFileNameWithAI(thumbnails, item.originalName);
+            handleRenameUploadedFile(item.id, suggestedName);
+          } catch (err) {
+            console.error(err);
+          }
+        }
+      } else {
+        const thumbnails = pages.slice(0, 5).map(p => p.thumbnailUrl);
+        const suggestedName = await suggestFileNameWithAI(thumbnails, file?.name || outputFileName || 'Tai_lieu');
+        setOutputFileName(suggestedName);
+        if (uploadedFiles.length === 1) {
+          handleRenameUploadedFile(uploadedFiles[0].id, suggestedName);
+        }
+      }
     } catch (err: any) {
       console.error(err);
-      // Smart local fallback if AI service fails or key is missing
       const base = (file?.name || outputFileName || 'Tai_lieu').replace(/\.pdf$/i, '');
       const cleaned = base
         .replace(/[^a-zA-Z0-9\u00C0-\u1EF9]/g, '_')
@@ -339,6 +424,12 @@ const App: React.FC = () => {
       const blankFile = await createBlankPDF();
       setFile(blankFile);
       setOutputFileName(blankFile.name);
+      setUploadedFiles([{
+        id: `blank-${Date.now()}`,
+        file: blankFile,
+        originalName: blankFile.name,
+        customName: 'tai_lieu_moi'
+      }]);
 
       const loadedPages = await loadPDFAndRenderThumbnails(blankFile, (percent) => {
         setProcessingState(prev => ({ ...prev, progress: percent }));
@@ -374,6 +465,7 @@ const App: React.FC = () => {
   const resetApp = () => {
     setFile(null);
     setPages([]);
+    setUploadedFiles([]);
     setError(null);
     setSelectionMode(SelectionMode.MANUAL);
     setOutputFileName('');
@@ -403,6 +495,11 @@ const App: React.FC = () => {
         onAiSuggestFileName={handleAiSuggestFileName}
         isAiNaming={isAiNaming}
         onUploadFile={handleFileChange}
+        uploadedFiles={uploadedFiles}
+        onRenameUploadedFile={handleRenameUploadedFile}
+        onDownloadUploadedFile={handleDownloadUploadedFile}
+        onDownloadAllUploadedFilesZip={handleDownloadAllUploadedFilesZip}
+        onAiSuggestNameForItem={handleAiSuggestNameForItem}
       />
 
       {/* Main Content Area */}

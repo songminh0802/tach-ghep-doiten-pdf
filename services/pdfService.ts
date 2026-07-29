@@ -157,3 +157,17 @@ export const createBlankPDF = async (): Promise<File> => {
   const pdfBytes = await pdfDoc.save();
   return new File([pdfBytes], 'tai_lieu_moi.pdf', { type: 'application/pdf' });
 };
+
+export const createZipFromFiles = async (
+  items: { file: File; name: string }[]
+): Promise<Blob> => {
+  const zip = new JSZip();
+  items.forEach((item, index) => {
+    let filename = item.name.trim() || `tai_lieu_${index + 1}`;
+    if (!filename.toLowerCase().endsWith('.pdf')) {
+      filename += '.pdf';
+    }
+    zip.file(filename, item.file);
+  });
+  return await zip.generateAsync({ type: "blob" });
+};

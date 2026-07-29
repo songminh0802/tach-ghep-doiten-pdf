@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SelectionMode, ProcessingState } from '../types';
+import { SelectionMode, ProcessingState, UploadedFileItem } from '../types';
 import { 
   Sparkles, 
   MousePointer2, 
@@ -42,6 +42,11 @@ interface SidebarProps {
   onAiSuggestFileName?: () => void;
   isAiNaming?: boolean;
   onUploadFile?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  uploadedFiles?: UploadedFileItem[];
+  onRenameUploadedFile?: (id: string, newName: string) => void;
+  onDownloadUploadedFile?: (item: UploadedFileItem) => void;
+  onDownloadAllUploadedFilesZip?: () => void;
+  onAiSuggestNameForItem?: (item: UploadedFileItem) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -63,7 +68,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setOutputFileName,
   onAiSuggestFileName,
   isAiNaming,
-  onUploadFile
+  onUploadFile,
+  uploadedFiles,
+  onRenameUploadedFile,
+  onDownloadUploadedFile,
+  onDownloadAllUploadedFilesZip,
+  onAiSuggestNameForItem
 }) => {
   // 4 Tabs: 'preview' (Xem trước) | 'rename' (Đổi tên) | 'split' (Tách file) | 'merge' (Gộp file)
   const [activeTab, setActiveTab] = useState<'preview' | 'rename' | 'split' | 'merge'>('preview');
@@ -348,7 +358,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
                 <span className="text-xs font-semibold text-teal-900">
-                  Đã chọn {selectedCount} / {totalDocs} trang
+                  {uploadedFiles && uploadedFiles.length > 1
+                    ? `Danh sách ${uploadedFiles.length} file đã tải lên`
+                    : `Đã chọn ${selectedCount} / ${totalDocs} trang`}
                 </span>
               </div>
               <button 
@@ -365,88 +377,146 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[11px] font-extrabold">1</span>
-                  Đặt tên / Đổi tên tài liệu
+                  Đặt tên / Đổi tên ({uploadedFiles?.length || 1} file)
                 </span>
-                {!outputFileName.trim() ? (
-                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
-                    ⚠️ Chưa có tên
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
-                    ✓ Sẵn sàng
-                  </span>
-                )}
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                  ✓ Sẵn sàng
+                </span>
               </div>
 
-              {/* AI Auto-Name Button */}
+              {uploadedFiles && uploadedFiles.length > 1 && (
+                <div className="text-[11px] text-teal-800 bg-teal-50/80 border border-teal-200/60 rounded-xl p-2.5 leading-relaxed font-medium">
+                  💡 Bạn đang tải lên <b>{uploadedFiles.length} file</b>. Bạn có thể đổi tên từng file bên dưới hoặc nhờ AI đặt tên tự động cho toàn bộ.
+                </div>
+              )}
+
+              {/* Global AI Auto-Name Button */}
               {onAiSuggestFileName && (
                 <button
                   onClick={onAiSuggestFileName}
                   disabled={isAiNaming || totalDocs === 0}
                   className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 group"
-                  title="Nhờ AI xem nội dung file và tự động gợi ý tên file chuẩn gọn gàng"
+                  title="Nhờ AI xem nội dung và tự động gợi ý tên chuẩn gọn gàng"
                 >
                   <Sparkles className={clsx("w-4 h-4", isAiNaming ? "animate-spin" : "group-hover:scale-110 transition-transform")} />
-                  <span>{isAiNaming ? "AI đang đọc tài liệu & đặt tên..." : "✨ Nhờ AI đặt tên theo nội dung file"}</span>
+                  <span>
+                    {isAiNaming 
+                      ? "AI đang tự động đọc tài liệu & đặt tên..." 
+                      : (uploadedFiles && uploadedFiles.length > 1
+                          ? `✨ Nhờ AI tự động đặt tên cho cả ${uploadedFiles.length} file`
+                          : "✨ Nhờ AI đặt tên theo nội dung file")}
+                  </span>
                 </button>
               )}
 
-              {/* Manual Filename Input */}
-              <div className={clsx(
-                "flex items-center bg-white border-2 rounded-xl px-3 py-2.5 transition-all shadow-2xs",
-                !outputFileName.trim()
-                  ? "border-amber-400 ring-2 ring-amber-100"
-                  : "border-slate-200 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/15"
-              )}>
-                <FileText className="w-4 h-4 text-teal-600 mr-2 shrink-0" />
-                <input 
-                  type="text" 
-                  value={outputFileName}
-                  onChange={(e) => setOutputFileName(e.target.value)}
-                  className="w-full text-xs outline-none text-slate-800 bg-transparent placeholder-slate-400 font-semibold"
-                  placeholder="Nhập tên file (VD: Hop_dong_2026)..."
-                />
-                {outputFileName && (
-                  <button
-                    onClick={() => setOutputFileName('')}
-                    className="text-slate-400 hover:text-red-600 text-[11px] ml-1 px-1.5 py-0.5 rounded hover:bg-red-50 font-bold transition-colors"
-                    title="Xoá tên hiện tại để đặt lại từ đầu"
+              {/* File Rename List */}
+              <div className="space-y-3 pt-1">
+                {(uploadedFiles && uploadedFiles.length > 0 ? uploadedFiles : [{
+                  id: 'default-file',
+                  file: null as any,
+                  originalName: outputFileName ? `${outputFileName}.pdf` : 'Tai_lieu.pdf',
+                  customName: outputFileName || ''
+                }]).map((item, index) => (
+                  <div 
+                    key={item.id} 
+                    className="bg-white border-2 border-slate-200/80 hover:border-teal-300 rounded-xl p-3 space-y-2.5 transition-all shadow-2xs"
                   >
-                    Xoá
-                  </button>
-                )}
-              </div>
-              
-              {/* Quick Date Addition Pills */}
-              <div className="flex items-center flex-wrap gap-1.5 pt-1">
-                <span className="text-[11px] text-slate-500 mr-0.5 flex items-center gap-1 font-semibold">
-                  <Calendar className="w-3.5 h-3.5 text-teal-600" /> Thêm ngày:
-                </span>
-                {[
-                  { label: 'Năm', prefix: () => `${new Date().getFullYear()}_` },
-                  { label: 'Tháng', prefix: () => `${String(new Date().getMonth() + 1).padStart(2, '0')}_` },
-                  { label: 'Ngày', prefix: () => `${String(new Date().getDate()).padStart(2, '0')}_` },
-                  { label: 'Y-M-D', prefix: () => `${new Date().getFullYear()}_${String(new Date().getMonth() + 1).padStart(2, '0')}_${String(new Date().getDate()).padStart(2, '0')}_` }
-                ].map(item => (
-                  <button
-                    key={item.label}
-                    onClick={() => {
-                      const currentVal = outputFileName.trim();
-                      setOutputFileName(`${item.prefix()}${currentVal}`);
-                    }}
-                    className="text-[11px] bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-700 hover:border-teal-300 px-2.5 py-1 rounded-md border border-slate-200 transition-all font-semibold active:scale-95 shadow-2xs"
-                  >
-                    +{item.label}
-                  </button>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-700 font-extrabold text-[11px] flex items-center justify-center shrink-0">
+                          {index + 1}
+                        </span>
+                        <span className="text-xs font-bold text-slate-700 truncate" title={item.originalName}>
+                          Tên gốc: {item.originalName}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {onAiSuggestNameForItem && item.file && (
+                          <button
+                            onClick={() => onAiSuggestNameForItem(item)}
+                            disabled={isAiNaming}
+                            className="py-1 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/80 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors"
+                            title="Nhờ AI đặt tên riêng cho file này"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>AI</span>
+                          </button>
+                        )}
+                        {onDownloadUploadedFile && item.file && (
+                          <button
+                            onClick={() => onDownloadUploadedFile(item)}
+                            className="py-1 px-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors shadow-2xs"
+                            title="Tải về file này với tên mới"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>Tải về</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Manual Filename Input */}
+                    <div className={clsx(
+                      "flex items-center bg-slate-50/80 border-2 rounded-xl px-3 py-2 transition-all",
+                      !(item.customName || '').trim()
+                        ? "border-amber-400 ring-2 ring-amber-100"
+                        : "border-slate-200 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/15 focus-within:bg-white"
+                    )}>
+                      <FileText className="w-3.5 h-3.5 text-teal-600 mr-2 shrink-0" />
+                      <input 
+                        type="text" 
+                        value={item.customName || ''}
+                        onChange={(e) => {
+                          if (onRenameUploadedFile && item.id !== 'default-file') {
+                            onRenameUploadedFile(item.id, e.target.value);
+                          } else {
+                            setOutputFileName(e.target.value);
+                          }
+                        }}
+                        className="w-full text-xs outline-none text-slate-800 bg-transparent placeholder-slate-400 font-semibold"
+                        placeholder="Nhập tên file mới..."
+                      />
+                    </div>
+
+                    {/* Quick date pills for this file */}
+                    <div className="flex items-center flex-wrap gap-1">
+                      <span className="text-[10px] text-slate-400 font-semibold mr-0.5 flex items-center gap-0.5">
+                        <Calendar className="w-3 h-3 text-teal-600" /> +Ngày:
+                      </span>
+                      {[
+                        { label: 'Năm', suffix: `_${new Date().getFullYear()}` },
+                        { label: 'Tháng', suffix: `_T${String(new Date().getMonth() + 1).padStart(2, '0')}` },
+                        { label: 'Ngày', suffix: `_${String(new Date().getDate()).padStart(2, '0')}` },
+                        { label: 'Y-M-D', suffix: `_${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` }
+                      ].map(btn => (
+                        <button
+                          key={btn.label}
+                          onClick={() => {
+                            const newVal = `${item.customName || ''}${btn.suffix}`;
+                            if (onRenameUploadedFile && item.id !== 'default-file') {
+                              onRenameUploadedFile(item.id, newVal);
+                            } else {
+                              setOutputFileName(newVal);
+                            }
+                          }}
+                          className="text-[10px] bg-slate-100 hover:bg-teal-50 text-slate-600 hover:text-teal-700 px-1.5 py-0.5 rounded border border-slate-200/80 font-semibold transition-all active:scale-95"
+                        >
+                          +{btn.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
 
               {/* Complete Filename Preview Card */}
               <div className="p-3 bg-white border border-slate-200/80 rounded-xl flex items-center justify-between shadow-2xs mt-2">
                 <div className="min-w-0">
-                  <span className="text-[10px] text-slate-400 font-semibold block">Tên file hoàn chỉnh khi xuất:</span>
+                  <span className="text-[10px] text-slate-400 font-semibold block">Tình trạng đặt tên:</span>
                   <span className="text-xs font-bold text-teal-900 truncate block mt-0.5">
-                    {outputFileName ? `${outputFileName}.pdf` : '⚠️ Chưa đặt tên file'}
+                    {uploadedFiles && uploadedFiles.length > 1
+                      ? `Đang sẵn sàng tải về ${uploadedFiles.length} tài liệu`
+                      : (outputFileName ? `${outputFileName}.pdf` : '⚠️ Chưa đặt tên file')}
                   </span>
                 </div>
               </div>
@@ -461,21 +531,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                   <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <Download className="w-4 h-4 text-teal-600" />
-                    Tải về luôn (Không qua tách/gộp)
+                    {uploadedFiles && uploadedFiles.length > 1
+                      ? "Tải về tất cả file (Không qua tách/gộp)"
+                      : "Tải về luôn (Không qua tách/gộp)"}
                   </h4>
                   <p className="text-[11px] text-slate-600 mt-1 leading-relaxed font-medium">
-                    Tải ngay toàn bộ {selectedCount} trang đang chọn thành 1 file PDF mới với tên đã đặt ở trên.
+                    {uploadedFiles && uploadedFiles.length > 1
+                      ? `Tải ngay toàn bộ ${uploadedFiles.length} file đã đổi tên (đóng gói ZIP) hoặc bấm nút Tải về ở từng file bên trên.`
+                      : `Tải ngay toàn bộ ${selectedCount} trang đang chọn thành 1 file PDF mới với tên đã đặt ở trên.`}
                   </p>
                 </div>
-                <button
-                  onClick={onSplit}
-                  disabled={selectedCount === 0 || !outputFileName.trim()}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 hover:from-teal-700 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-extrabold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <Download className="w-4 h-4 transition-transform group-hover:scale-110" />
-                  <span className="truncate">📥 Tải về ngay ({outputFileName ? `${outputFileName}.pdf` : 'Chưa đặt tên'})</span>
-                </button>
-                {!outputFileName.trim() && (
+
+                {uploadedFiles && uploadedFiles.length > 1 ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={onDownloadAllUploadedFilesZip}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl font-extrabold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group"
+                    >
+                      <Download className="w-4 h-4 transition-transform group-hover:scale-110" />
+                      <span>📥 Tải về tất cả {uploadedFiles.length} file đã đổi tên (ZIP)</span>
+                    </button>
+                    <button
+                      onClick={onSplit}
+                      disabled={selectedCount === 0 || !outputFileName.trim()}
+                      className="w-full py-2.5 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2"
+                    >
+                      <Download className="w-3.5 h-3.5 text-teal-600" />
+                      <span className="truncate">Tải 1 file chung gộp ({outputFileName || 'merged'}.pdf)</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={onSplit}
+                    disabled={selectedCount === 0 || !outputFileName.trim()}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 hover:from-teal-700 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-extrabold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <Download className="w-4 h-4 transition-transform group-hover:scale-110" />
+                    <span className="truncate">📥 Tải về ngay ({outputFileName ? `${outputFileName}.pdf` : 'Chưa đặt tên'})</span>
+                  </button>
+                )}
+                {!outputFileName.trim() && !(uploadedFiles && uploadedFiles.length > 1) && (
                   <p className="text-[11px] text-center text-amber-600 font-semibold mt-1.5">
                     ⚠️ Vui lòng nhập hoặc nhờ AI đặt tên trước khi tải
                   </p>

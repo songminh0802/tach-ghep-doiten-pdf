@@ -26,6 +26,13 @@ export interface SplitResult {
   filename: string;
 }
 
+export interface UploadedFileItem {
+  id: string;
+  file: File;
+  originalName: string;
+  customName: string;
+}
+
 // Ensure external libraries are typed if not using @types packages in this environment
 declare global {
   interface Window {
