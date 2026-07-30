@@ -53,6 +53,37 @@ export const loadPDFAndRenderThumbnails = async (
   return pages;
 };
 
+export const loadFirstPageThumbnailFast = async (file: File): Promise<string | null> => {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    if (pdf.numPages < 1) return null;
+    
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1 });
+    const scale = 200 / viewport.width;
+    const scaledViewport = page.getViewport({ scale });
+
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.height = scaledViewport.height;
+    canvas.width = scaledViewport.width;
+
+    if (context) {
+      await page.render({
+        canvasContext: context,
+        viewport: scaledViewport,
+      }).promise;
+      return canvas.toDataURL('image/jpeg', 0.6);
+    }
+    return null;
+  } catch (e) {
+    console.warn('loadFirstPageThumbnailFast failed:', e);
+    return null;
+  }
+};
+
 export const splitPDF = async (
   originalFile: File,
   selectedPages: PDFPage[]
