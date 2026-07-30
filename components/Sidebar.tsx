@@ -196,7 +196,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <input
                   type="file"
                   multiple
-                  accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,*/*"
                   onChange={onUploadFile}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                 />

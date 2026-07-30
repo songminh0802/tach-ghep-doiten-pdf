@@ -119,17 +119,7 @@ const App: React.FC = () => {
     
     // Explicitly cast to File[] to avoid 'unknown' type inference issues from Array.from(fileList)
     const files = Array.from(fileList) as File[];
-    const unsupported = files.find(f => 
-      f.type !== 'application/pdf' && 
-      !f.type.startsWith('image/') &&
-      !/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|jpg|jpeg|png|webp|bmp|gif|tiff|heic|zip|rar)$/i.test(f.name)
-    );
-
-    if (unsupported) {
-      setError('Vui lòng chỉ tải lên file PDF, Hình ảnh, hoặc tài liệu Word/Excel/Office.');
-      return;
-    }
-
+    // Cho phép tải lên TẤT CẢ định dạng tài liệu (PDF, Word, Excel, PowerPoint, ZIP, ảnh...) để Đổi tên & Tải về
     setProcessingState({ isProcessing: true, message: files.length > 1 ? 'Đang chuẩn bị danh sách tài liệu...' : 'Đang xử lý tài liệu...', progress: 0 });
     setError(null);
 
@@ -723,13 +713,13 @@ const App: React.FC = () => {
                     <input
                       type="file"
                       multiple
-                      accept="application/pdf,image/*,.jpg,.jpeg,.png,.webp"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,*/*"
                       onChange={handleFileChange}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                     />
                     <button className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-lg text-xs font-extrabold transition-all shadow-2xs">
                       <UploadCloud className="w-3.5 h-3.5" />
-                      <span>+ Tải PDF / Ảnh lên</span>
+                      <span>+ Tải PDF / Word / Excel lên</span>
                     </button>
                   </div>
                 ) : (
@@ -800,16 +790,16 @@ const App: React.FC = () => {
                   <input
                     type="file"
                     multiple
-                    accept="application/pdf,image/*,.jpg,.jpeg,.png,.webp"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,*/*"
                     onChange={handleFileChange}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                   />
                   <div className="border-2 border-dashed border-teal-300 bg-teal-50/40 hover:bg-teal-50/80 rounded-2xl p-6 transition-all duration-300 group-hover:border-teal-500">
                     <Button size="lg" className="w-full pointer-events-none font-bold" icon={<UploadCloud className="w-5 h-5"/>}>
-                      Chọn File PDF / Ảnh từ máy tính
+                      Chọn File PDF / Word / Excel / Ảnh...
                     </Button>
                     <p className="mt-2 text-[11px] text-teal-700 font-semibold">
-                      Hỗ trợ chọn 1 hoặc nhiều file PDF & Hình ảnh cùng lúc
+                      Hỗ trợ chọn 1 hoặc nhiều file PDF, Word, Excel & Ảnh cùng lúc
                     </p>
                   </div>
                 </div>
