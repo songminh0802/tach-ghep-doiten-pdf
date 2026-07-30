@@ -122,15 +122,15 @@ const App: React.FC = () => {
     const unsupported = files.find(f => 
       f.type !== 'application/pdf' && 
       !f.type.startsWith('image/') &&
-      !/\.(pdf|jpg|jpeg|png|webp|bmp|gif|tiff|heic)$/i.test(f.name)
+      !/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|jpg|jpeg|png|webp|bmp|gif|tiff|heic|zip|rar)$/i.test(f.name)
     );
 
     if (unsupported) {
-      setError('Vui lòng chỉ tải lên file PDF hoặc hình ảnh (JPG, PNG, WEBP...).');
+      setError('Vui lòng chỉ tải lên file PDF, Hình ảnh, hoặc tài liệu Word/Excel/Office.');
       return;
     }
 
-    setProcessingState({ isProcessing: true, message: files.length > 1 ? 'Đang chuẩn bị và ghép nối tài liệu...' : 'Đang xử lý tài liệu...', progress: 0 });
+    setProcessingState({ isProcessing: true, message: files.length > 1 ? 'Đang chuẩn bị danh sách tài liệu...' : 'Đang xử lý tài liệu...', progress: 0 });
     setError(null);
 
     try {
@@ -139,38 +139,51 @@ const App: React.FC = () => {
       });
       if (normalizedFiles.length === 0) return;
 
-      let targetFile: File;
-      
-      if (normalizedFiles.length > 1) {
-        targetFile = await mergePDFs(normalizedFiles);
-        setProcessingState(prev => ({ ...prev, message: 'Đang tạo thumbnails...' }));
-      } else {
-        targetFile = normalizedFiles[0];
-      }
-      
-      setFile(targetFile);
-      setOutputFileName(targetFile.name.replace(/\.pdf$/i, ''));
-
-      const items: UploadedFileItem[] = normalizedFiles.map((f, index) => {
-        const origName = files[index] ? files[index].name : f.name;
+      const items: UploadedFileItem[] = files.map((f, index) => {
         return {
           id: `${f.name}-${index}-${Date.now()}`,
           file: f,
-          originalName: origName,
-          customName: origName.replace(/\.(pdf|jpg|jpeg|png|webp|bmp|gif|tiff|heic)$/i, ''),
+          originalName: f.name,
+          customName: f.name.replace(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|jpg|jpeg|png|webp|bmp|gif|tiff|heic|zip|rar)$/i, ''),
         };
       });
       setUploadedFiles(items);
 
-      const loadedPages = await loadPDFAndRenderThumbnails(targetFile, (percent) => {
-        setProcessingState(prev => ({ ...prev, progress: percent }));
-      });
-      setPages(loadedPages);
-      setHistory([]);
-      setFuture([]);
+      const pdfOrImgFiles = normalizedFiles.filter(f => 
+        f.type === 'application/pdf' || 
+        f.name.toLowerCase().endsWith('.pdf') || 
+        f.type.startsWith('image/')
+      );
+
+      if (pdfOrImgFiles.length > 0) {
+        let targetFile: File;
+        if (pdfOrImgFiles.length > 1) {
+          targetFile = await mergePDFs(pdfOrImgFiles);
+          setProcessingState(prev => ({ ...prev, message: 'Đang tạo thumbnails...' }));
+        } else {
+          targetFile = pdfOrImgFiles[0];
+        }
+        
+        setFile(targetFile);
+        setOutputFileName(targetFile.name.replace(/\.[^/.]+$/i, ''));
+
+        const loadedPages = await loadPDFAndRenderThumbnails(targetFile, (percent) => {
+          setProcessingState(prev => ({ ...prev, progress: percent }));
+        });
+        setPages(loadedPages);
+        setHistory([]);
+        setFuture([]);
+      } else {
+        // Chỉ tải lên file Word/Excel/Office -> Chế độ Đổi tên & Tải về
+        setFile(null);
+        setPages([]);
+        setHistory([]);
+        setFuture([]);
+        setOutputFileName('');
+      }
     } catch (err) {
       console.error(err);
-      setError('Lỗi khi đọc file PDF. File có thể bị hỏng hoặc có mật khẩu.');
+      setError('Lỗi khi đọc file tải lên.');
       setFile(null);
     } finally {
       setProcessingState({ isProcessing: false, message: '', progress: 0 });
@@ -264,9 +277,18 @@ const App: React.FC = () => {
 
   const handleDownloadUploadedFile = (item: UploadedFileItem) => {
     const url = URL.createObjectURL(item.file);
+    const orig = item.originalName || item.file.name;
+    const extMatch = orig.match(/\.([0-9a-z]+)$/i);
+    const ext = extMatch ? `.${extMatch[1]}` : '.pdf';
+
+    let filename = item.customName.trim() || 'Tai_lieu';
+    if (!filename.toLowerCase().endsWith(ext.toLowerCase())) {
+      filename += ext;
+    }
+
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${item.customName.trim() || 'Tai_lieu'}.pdf`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -281,6 +303,7 @@ const App: React.FC = () => {
         uploadedFiles.map(item => ({
           file: item.file,
           name: item.customName.trim() || 'Tai_lieu',
+          originalName: item.originalName || item.file.name,
         }))
       );
       const url = URL.createObjectURL(zipBlob);
@@ -298,16 +321,28 @@ const App: React.FC = () => {
     }
   };
 
+  const getSuggestedNameForItem = async (item: UploadedFileItem): Promise<string> => {
+    let thumbnails: string[] = [];
+    const isPdf = item.file.type === 'application/pdf' || item.file.name.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      try {
+        const itemPages = await loadPDFAndRenderThumbnails(item.file, () => {});
+        thumbnails = itemPages.slice(0, 5).map(p => p.thumbnailUrl);
+      } catch (e) {
+        console.warn('Cannot load thumbnails for AI naming, using filename only', e);
+      }
+    }
+    return await suggestFileNameWithAI(thumbnails, item.originalName);
+  };
+
   const handleAiSuggestNameForItem = async (item: UploadedFileItem) => {
     setIsAiNaming(true);
     try {
-      const itemPages = await loadPDFAndRenderThumbnails(item.file);
-      const thumbnails = itemPages.slice(0, 5).map(p => p.thumbnailUrl);
-      const suggestedName = await suggestFileNameWithAI(thumbnails, item.originalName);
+      const suggestedName = await getSuggestedNameForItem(item);
       handleRenameUploadedFile(item.id, suggestedName);
     } catch (err) {
       console.error(err);
-      const fallback = item.originalName.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9\u00C0-\u1EF9]/g, '_');
+      const fallback = item.originalName.replace(/\.[^/.]+$/i, '').replace(/[^a-zA-Z0-9\u00C0-\u1EF9]/g, '_');
       handleRenameUploadedFile(item.id, fallback);
     } finally {
       setIsAiNaming(false);
@@ -322,14 +357,19 @@ const App: React.FC = () => {
       if (uploadedFiles.length > 1) {
         for (const item of uploadedFiles) {
           try {
-            const itemPages = await loadPDFAndRenderThumbnails(item.file);
-            const thumbnails = itemPages.slice(0, 5).map(p => p.thumbnailUrl);
-            const suggestedName = await suggestFileNameWithAI(thumbnails, item.originalName);
+            const suggestedName = await getSuggestedNameForItem(item);
             handleRenameUploadedFile(item.id, suggestedName);
           } catch (err) {
             console.error(err);
           }
         }
+      } else if (uploadedFiles.length === 1) {
+        const item = uploadedFiles[0];
+        const suggestedName = await getSuggestedNameForItem(item);
+        setOutputFileName(suggestedName);
+        setUploadedFiles(prev => prev.map((it, idx) => 
+          idx === 0 ? { ...it, customName: suggestedName } : it
+        ));
       } else {
         const thumbnails = pages.slice(0, 5).map(p => p.thumbnailUrl);
         const suggestedName = await suggestFileNameWithAI(thumbnails, file?.name || outputFileName || 'Tai_lieu');
@@ -340,7 +380,7 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error(err);
-      const base = (file?.name || outputFileName || 'Tai_lieu').replace(/\.pdf$/i, '');
+      const base = (file?.name || outputFileName || 'Tai_lieu').replace(/\.[^/.]+$/i, '');
       const cleaned = base
         .replace(/[^a-zA-Z0-9\u00C0-\u1EF9]/g, '_')
         .replace(/_+/g, '_')

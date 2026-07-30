@@ -162,13 +162,17 @@ export const createBlankPDF = async (): Promise<File> => {
 };
 
 export const createZipFromFiles = async (
-  items: { file: File; name: string }[]
+  items: { file: File; name: string; originalName?: string }[]
 ): Promise<Blob> => {
   const zip = new JSZip();
   items.forEach((item, index) => {
     let filename = item.name.trim() || `tai_lieu_${index + 1}`;
-    if (!filename.toLowerCase().endsWith('.pdf')) {
-      filename += '.pdf';
+    const orig = item.originalName || item.file.name;
+    const extMatch = orig.match(/\.([0-9a-z]+)$/i);
+    const ext = extMatch ? `.${extMatch[1]}` : '.pdf';
+
+    if (!filename.toLowerCase().endsWith(ext.toLowerCase())) {
+      filename += ext;
     }
     zip.file(filename, item.file);
   });
@@ -243,6 +247,9 @@ export const normalizeUploadedFiles = async (
       if (onProgress) onProgress(`Đang chuyển file ảnh "${file.name}" sang PDF...`);
       const pdfFile = await convertImageToPDF(file);
       result.push(pdfFile);
+    } else {
+      // Giữ nguyên các định dạng Office/Văn bản (Word, Excel, PowerPoint, TXT...) để đổi tên và tải về
+      result.push(file);
     }
   }
   return result;

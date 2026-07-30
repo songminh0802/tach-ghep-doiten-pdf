@@ -196,13 +196,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <input
                   type="file"
                   multiple
-                  accept="application/pdf,image/*,.jpg,.jpeg,.png,.webp"
+                  accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp"
                   onChange={onUploadFile}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                 />
                 <button className="w-full py-2.5 px-3 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5">
                   <UploadCloud className="w-3.5 h-3.5" />
-                  <span>Chọn file PDF / Ảnh ngay</span>
+                  <span>Chọn file PDF / Word / Excel / Ảnh...</span>
                 </button>
               </div>
             )}
@@ -388,9 +388,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </span>
               </div>
 
+              <div className="text-[11px] text-teal-800 bg-teal-50/90 border border-teal-200/80 rounded-xl p-2.5 leading-relaxed font-medium">
+                ✨ Hỗ trợ đổi tên & tải về cho mọi định dạng: <b>PDF, Word (.docx), Excel (.xlsx), PowerPoint, Ảnh...</b>
+              </div>
+
               {uploadedFiles && uploadedFiles.length > 1 && (
-                <div className="text-[11px] text-teal-800 bg-teal-50/80 border border-teal-200/60 rounded-xl p-2.5 leading-relaxed font-medium">
-                  💡 Bạn đang tải lên <b>{uploadedFiles.length} file</b>. Bạn có thể đổi tên từng file bên dưới hoặc nhờ AI đặt tên tự động cho toàn bộ.
+                <div className="text-[11px] text-slate-700 bg-slate-100/80 border border-slate-200/60 rounded-xl p-2 leading-relaxed font-medium">
+                  💡 Bạn đang có <b>{uploadedFiles.length} file</b>. Có thể đổi tên từng file hoặc nhờ AI đặt tên tự động cho toàn bộ.
                 </div>
               )}
 
@@ -483,6 +487,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         className="w-full text-xs outline-none text-slate-800 bg-transparent placeholder-slate-400 font-semibold"
                         placeholder="Nhập tên file mới..."
                       />
+                      <span className="text-[11px] font-extrabold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 shrink-0 ml-1">
+                        {item.originalName ? (item.originalName.match(/\.([0-9a-z]+)$/i)?.[0] || '.pdf') : '.pdf'}
+                      </span>
                     </div>
 
                     {/* Quick date pills for this file */}

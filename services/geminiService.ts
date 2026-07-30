@@ -86,10 +86,9 @@ export const suggestFileNameWithAI = async (
   try {
     const parts: any[] = [];
     parts.push({
-      text: `Bạn là trợ lý AI chuyên xử lý tài liệu.
-      Nhiệm vụ: Xem xét các trang tài liệu PDF dưới đây (tên gốc hiện tại: "${originalName}").
-      Hãy gợi ý một TÊN FILE mới ngắn gọn, chuyên nghiệp, phản ánh chính xác nội dung chính của tài liệu (không chứa ký tự đặc biệt, dùng dấu gạch dưới '_' thay khoảng trắng, không có đuôi .pdf, dài tối đa 6 từ).
-      Ví dụ: Hop_dong_thue_nha_2024, Bao_cao_doanh_thu_Q1, De_thi_toan_12.
+      text: `Bạn là trợ lý AI chuyên chuẩn hóa tên file tài liệu.
+      Nhiệm vụ: Dựa vào tên gốc hiện tại ("${originalName}") và ảnh nội dung (nếu có), hãy gợi ý một TÊN FILE mới ngắn gọn, chuyên nghiệp, rõ ràng (dùng dấu gạch dưới '_' thay khoảng trắng, không chứa ký tự đặc biệt, không kèm phần mở rộng như .pdf, .docx, .xlsx, dài tối đa 8 từ).
+      Ví dụ: Hop_dong_thue_nha_2026, Bao_cao_doanh_thu_Q1, Danh_sach_hoc_sinh_10A1.
       
       Trả về kết quả dưới dạng JSON chứa thuộc tính fileName.
       `
