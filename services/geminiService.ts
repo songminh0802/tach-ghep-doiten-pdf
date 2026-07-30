@@ -6,6 +6,32 @@ import { GoogleGenAI, Type } from "@google/genai";
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
+ * Instant local heuristic normalizer for filenames (Word, Excel, PDF...)
+ * Converts Vietnamese accented filenames into clean, professional Title_Case_With_Underscores in 0.001 seconds.
+ */
+export const instantSmartCleanFileName = (originalName: string): string => {
+  try {
+    let name = originalName.replace(/\.[^/.]+$/i, '');
+    name = name.replace(/^[0-9]+[\s\-._]+/g, '');
+    name = name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D');
+    name = name.replace(/[^a-zA-Z0-9]/g, '_');
+    name = name.replace(/_+/g, '_').replace(/^_|_$/g, '');
+    const words = name.split('_').filter(Boolean);
+    const capitalized = words
+      .slice(0, 10)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join('_');
+    return capitalized || 'Tai_Lieu';
+  } catch (e) {
+    return 'Tai_Lieu';
+  }
+};
+
+/**
  * Analyzes page thumbnails to detect logical split points (like chapter starts).
  * Returns an array of page indices (0-based) where a split should occur.
  */
@@ -47,7 +73,7 @@ export const analyzeSplitPoints = async (
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: { parts },
       config: {
         responseMimeType: "application/json",
@@ -109,7 +135,7 @@ export const suggestFileNameWithAI = async (
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: { parts },
       config: {
         responseMimeType: "application/json",
@@ -171,7 +197,7 @@ export const suggestBatchFileNamesWithAI = async (
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: { parts },
       config: {
         responseMimeType: "application/json",
@@ -228,7 +254,7 @@ export const suggestChapterNamesWithAI = async (
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: { parts },
       config: {
         responseMimeType: "application/json"

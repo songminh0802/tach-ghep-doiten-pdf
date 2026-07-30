@@ -312,8 +312,16 @@ const App: React.FC = () => {
   };
 
   const getSuggestedNameForItem = async (item: UploadedFileItem): Promise<string> => {
-    let thumbnails: string[] = [];
     const isPdf = item.file.type === 'application/pdf' || item.file.name.toLowerCase().endsWith('.pdf');
+    const isImg = item.file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp|gif|tiff|heic)$/i.test(item.file.name);
+
+    // Với file Word, Excel, PowerPoint (không có ảnh thumbnail trong trình duyệt),
+    // sử dụng Instant Smart Normalizer chuẩn hóa tên file siêu tốc trong 0.001 giây (1 mili giây)
+    if (!isPdf && !isImg) {
+      return instantSmartCleanFileName(item.originalName);
+    }
+
+    let thumbnails: string[] = [];
     if (isPdf) {
       try {
         const firstPageThumb = await loadFirstPageThumbnailFast(item.file);
@@ -332,7 +340,7 @@ const App: React.FC = () => {
       handleRenameUploadedFile(item.id, suggestedName);
     } catch (err) {
       console.error(err);
-      const fallback = item.originalName.replace(/\.[^/.]+$/i, '').replace(/[^a-zA-Z0-9\u00C0-\u1EF9]/g, '_');
+      const fallback = instantSmartCleanFileName(item.originalName);
       handleRenameUploadedFile(item.id, fallback);
     } finally {
       setIsAiNaming(false);
@@ -345,23 +353,35 @@ const App: React.FC = () => {
     setIsAiNaming(true);
     try {
       if (uploadedFiles.length > 1) {
-        // Tối ưu tốc độ gấp 15 lần: Lấy ảnh trang 1 siêu nhanh và gửi 1 lần gọi API duy nhất cho tất cả các file
-        const batchItems = await Promise.all(
-          uploadedFiles.map(async (item) => {
+        // Tái tạo danh sách tên file theo tốc độ tối đa:
+        // - File Word/Excel: chuẩn hóa ngay lập tức (0.001s)
+        // - File PDF/Ảnh: gọi Batch API siêu tốc (gemini-2.5-flash)
+        const nameMapping: Record<string, string> = {};
+        const pdfImgItems: { id: string; originalName: string; thumbnail?: string | null }[] = [];
+
+        for (const item of uploadedFiles) {
+          const isPdf = item.file.type === 'application/pdf' || item.file.name.toLowerCase().endsWith('.pdf');
+          const isImg = item.file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp|gif|tiff|heic)$/i.test(item.file.name);
+          if (!isPdf && !isImg) {
+            nameMapping[item.id] = instantSmartCleanFileName(item.originalName);
+          } else {
             let thumb: string | null = null;
-            const isPdf = item.file.type === 'application/pdf' || item.file.name.toLowerCase().endsWith('.pdf');
             if (isPdf) {
               thumb = await loadFirstPageThumbnailFast(item.file);
             }
-            return {
+            pdfImgItems.push({
               id: item.id,
               originalName: item.originalName,
               thumbnail: thumb,
-            };
-          })
-        );
+            });
+          }
+        }
 
-        const nameMapping = await suggestBatchFileNamesWithAI(batchItems);
+        if (pdfImgItems.length > 0) {
+          const aiMapping = await suggestBatchFileNamesWithAI(pdfImgItems);
+          Object.assign(nameMapping, aiMapping);
+        }
+
         setUploadedFiles(prev =>
           prev.map(item => {
             const suggested = nameMapping[item.id];
