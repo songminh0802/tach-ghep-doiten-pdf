@@ -32,6 +32,15 @@ interface PDFViewerProps {
   onDeletePage: (originalIndex: number) => void;
   onAddBlankPageAfter: (originalIndex: number) => void;
   onRotatePage: (originalIndex: number) => void;
+  onSelectRange?: (indices: number[]) => void;
+  onSelectEven?: () => void;
+  onSelectOdd?: () => void;
+  onInvertSelection?: () => void;
+  onSelectBlank?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 interface PageItemProps {
@@ -190,8 +199,70 @@ const SortablePageItem: React.FC<{
   );
 };
 
-export const PDFViewer: React.FC<PDFViewerProps> = ({ pages, onTogglePage, onReorder, onDeletePage, onAddBlankPageAfter, onRotatePage }) => {
+export const PDFViewer: React.FC<PDFViewerProps> = ({
+  pages,
+  onTogglePage,
+  onReorder,
+  onDeletePage,
+  onAddBlankPageAfter,
+  onRotatePage,
+  onSelectRange,
+  onSelectEven,
+  onSelectOdd,
+  onInvertSelection,
+  onSelectBlank,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo
+}) => {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [zoomSize, setZoomSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [rangeInput, setRangeInput] = useState('');
+
+  const handleApplyRange = () => {
+    if (!rangeInput.trim() || !onSelectRange) return;
+    const parts = rangeInput.split(',');
+    const selectedNums = new Set<number>();
+
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      if (trimmed.includes('-')) {
+        const [startStr, endStr] = trimmed.split('-');
+        const start = parseInt(startStr, 10);
+        const end = parseInt(endStr, 10);
+        if (!isNaN(start) && !isNaN(end)) {
+          const min = Math.max(1, Math.min(start, end));
+          const max = Math.min(pages.length, Math.max(start, end));
+          for (let i = min; i <= max; i++) {
+            selectedNums.add(i);
+          }
+        }
+      } else {
+        const num = parseInt(trimmed, 10);
+        if (!isNaN(num) && num >= 1 && num <= pages.length) {
+          selectedNums.add(num);
+        }
+      }
+    }
+
+    if (selectedNums.size > 0) {
+      onSelectRange(Array.from(selectedNums));
+    }
+  };
+
+  const gridColsClass = useMemo(() => {
+    switch (zoomSize) {
+      case 'small':
+        return "grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7";
+      case 'large':
+        return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4";
+      case 'medium':
+      default:
+        return "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
+    }
+  }, [zoomSize]);
 
   // Configure sensors for better UX:
   // Mouse: Drag after 10px movement (prevents accidental drags on click)
@@ -247,39 +318,181 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ pages, onTogglePage, onReo
   };
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      measuring={{
-        droppable: {
-            strategy: MeasuringStrategy.Always,
-        }
-      }}
-    >
-      <SortableContext items={itemIds} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-4 pb-24">
-          {pages.map((page) => (
-            <SortablePageItem
-              key={page.originalIndex}
-              page={page}
-              onTogglePage={onTogglePage}
-              onDeletePage={onDeletePage}
-              onAddBlankPageAfter={onAddBlankPageAfter}
-              onRotatePage={onRotatePage}
-            />
-          ))}
-        </div>
-      </SortableContext>
+    <div className="flex flex-col w-full h-full">
+      {/* ⚡ Thanh Công Cụ Năng Suất (UX Productivity & Quick Select Bar) */}
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-2 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        {/* Left: Quick Select Range Input & Smart Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Range syntax selector */}
+          {onSelectRange && (
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleApplyRange();
+              }}
+              className="flex items-center gap-1.5 bg-slate-100 border border-slate-200/80 rounded-xl px-2.5 py-1"
+            >
+              <span className="text-[11px] font-bold text-slate-500 hidden sm:inline">Chọn nhanh:</span>
+              <input
+                type="text"
+                placeholder="VD: 1-5, 8, 12"
+                value={rangeInput}
+                onChange={(e) => setRangeInput(e.target.value)}
+                className="w-28 sm:w-36 bg-transparent text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="px-2 py-0.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs"
+              >
+                Chọn
+              </button>
+            </form>
+          )}
 
-      <DragOverlay dropAnimation={dropAnimation}>
-        {activePage ? (
-          <div className="w-full h-full cursor-grabbing">
-             <PageCard page={activePage} isOverlay />
+          {/* Smart select buttons */}
+          <div className="flex items-center gap-1 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/80">
+            {onSelectOdd && (
+              <button
+                type="button"
+                onClick={onSelectOdd}
+                className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-white hover:text-teal-700 rounded-lg transition-all"
+                title="Chọn tất cả trang lẻ (1, 3, 5...)"
+              >
+                Lẻ
+              </button>
+            )}
+            {onSelectEven && (
+              <button
+                type="button"
+                onClick={onSelectEven}
+                className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-white hover:text-teal-700 rounded-lg transition-all"
+                title="Chọn tất cả trang chẵn (2, 4, 6...)"
+              >
+                Chẵn
+              </button>
+            )}
+            {onInvertSelection && (
+              <button
+                type="button"
+                onClick={onInvertSelection}
+                className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-white hover:text-teal-700 rounded-lg transition-all"
+                title="Đảo ngược lựa chọn"
+              >
+                Đảo ngược
+              </button>
+            )}
+            {onSelectBlank && pages.some(p => p.isBlank) && (
+              <button
+                type="button"
+                onClick={onSelectBlank}
+                className="px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-white rounded-lg transition-all"
+                title="Chỉ chọn các trang trắng"
+              >
+                Trang trắng
+              </button>
+            )}
           </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+        </div>
+
+        {/* Right: Undo / Redo & Zoom Thumbnail Size Control */}
+        <div className="flex items-center gap-3">
+          {/* Undo / Redo buttons */}
+          {(onUndo || onRedo) && (
+            <div className="flex items-center gap-1 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={onUndo}
+                disabled={!canUndo}
+                className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-white hover:text-teal-700 disabled:opacity-40 disabled:hover:bg-transparent rounded-lg transition-all flex items-center gap-1"
+                title="Hoàn tác (Ctrl + Z)"
+              >
+                ↩️ <span className="hidden sm:inline">Hoàn tác</span>
+              </button>
+              <button
+                type="button"
+                onClick={onRedo}
+                disabled={!canRedo}
+                className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-white hover:text-teal-700 disabled:opacity-40 disabled:hover:bg-transparent rounded-lg transition-all flex items-center gap-1"
+                title="Làm lại (Ctrl + Y)"
+              >
+                ↪️ <span className="hidden sm:inline">Làm lại</span>
+              </button>
+            </div>
+          )}
+
+          {/* Zoom switcher */}
+          <div className="flex items-center gap-1 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/80">
+            <button
+              type="button"
+              onClick={() => setZoomSize('small')}
+              className={clsx(
+                "px-2 py-1 text-xs font-bold rounded-lg transition-all",
+                zoomSize === 'small' ? "bg-white text-teal-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+              )}
+              title="Nhỏ (Nhiều trang trên 1 hàng)"
+            >
+              S
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoomSize('medium')}
+              className={clsx(
+                "px-2 py-1 text-xs font-bold rounded-lg transition-all",
+                zoomSize === 'medium' ? "bg-white text-teal-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+              )}
+              title="Vừa (Mặc định)"
+            >
+              M
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoomSize('large')}
+              className={clsx(
+                "px-2 py-1 text-xs font-bold rounded-lg transition-all",
+                zoomSize === 'large' ? "bg-white text-teal-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+              )}
+              title="Lớn (Xem chi tiết rõ nét)"
+            >
+              L
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        measuring={{
+          droppable: {
+              strategy: MeasuringStrategy.Always,
+          }
+        }}
+      >
+        <SortableContext items={itemIds} strategy={rectSortingStrategy}>
+          <div className={`grid ${gridColsClass} gap-4 p-4 pb-24`}>
+            {pages.map((page) => (
+              <SortablePageItem
+                key={page.originalIndex}
+                page={page}
+                onTogglePage={onTogglePage}
+                onDeletePage={onDeletePage}
+                onAddBlankPageAfter={onAddBlankPageAfter}
+                onRotatePage={onRotatePage}
+              />
+            ))}
+          </div>
+        </SortableContext>
+
+        <DragOverlay dropAnimation={dropAnimation}>
+          {activePage ? (
+            <div className="w-full h-full cursor-grabbing">
+               <PageCard page={activePage} isOverlay />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 };

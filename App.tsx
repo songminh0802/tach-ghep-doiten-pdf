@@ -25,6 +25,93 @@ const App: React.FC = () => {
   const [outputFileName, setOutputFileName] = useState<string>('');
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
+  // UX Suite: History Stack (Undo / Redo)
+  const [history, setHistory] = useState<PDFPage[][]>([]);
+  const [future, setFuture] = useState<PDFPage[][]>([]);
+
+  const updatePagesWithHistory = useCallback((updater: (prev: PDFPage[]) => PDFPage[]) => {
+    setPages(currentPages => {
+      const nextPages = updater(currentPages);
+      if (nextPages !== currentPages) {
+        setHistory(prev => [...prev.slice(-25), currentPages]); // retain last 25 states
+        setFuture([]);
+      }
+      return nextPages;
+    });
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (history.length === 0) return;
+    const lastState = history[history.length - 1];
+    setFuture(prev => [pages, ...prev]);
+    setPages(lastState);
+    setHistory(prev => prev.slice(0, prev.length - 1));
+  }, [history, pages]);
+
+  const handleRedo = useCallback(() => {
+    if (future.length === 0) return;
+    const nextState = future[0];
+    setHistory(prev => [...prev, pages]);
+    setPages(nextState);
+    setFuture(prev => prev.slice(1));
+  }, [future, pages]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  // UX Suite: Smart Page Selection
+  const handleSelectRange = useCallback((targetPageNumbers: number[]) => {
+    updatePagesWithHistory(prev => prev.map(p => ({
+      ...p,
+      selected: targetPageNumbers.includes(p.pageNumber)
+    })));
+  }, [updatePagesWithHistory]);
+
+  const handleSelectEven = useCallback(() => {
+    updatePagesWithHistory(prev => prev.map(p => ({
+      ...p,
+      selected: p.pageNumber % 2 === 0
+    })));
+  }, [updatePagesWithHistory]);
+
+  const handleSelectOdd = useCallback(() => {
+    updatePagesWithHistory(prev => prev.map(p => ({
+      ...p,
+      selected: p.pageNumber % 2 !== 0
+    })));
+  }, [updatePagesWithHistory]);
+
+  const handleInvertSelection = useCallback(() => {
+    updatePagesWithHistory(prev => prev.map(p => ({
+      ...p,
+      selected: !p.selected
+    })));
+  }, [updatePagesWithHistory]);
+
+  const handleSelectBlank = useCallback(() => {
+    updatePagesWithHistory(prev => prev.map(p => ({
+      ...p,
+      selected: Boolean(p.isBlank)
+    })));
+  }, [updatePagesWithHistory]);
+
   // Handle File Upload
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = event.target.files;
@@ -79,6 +166,8 @@ const App: React.FC = () => {
         setProcessingState(prev => ({ ...prev, progress: percent }));
       });
       setPages(loadedPages);
+      setHistory([]);
+      setFuture([]);
     } catch (err) {
       console.error(err);
       setError('Lỗi khi đọc file PDF. File có thể bị hỏng hoặc có mật khẩu.');
@@ -90,18 +179,18 @@ const App: React.FC = () => {
 
   // Toggle Page Selection
   const togglePage = (originalIndex: number) => {
-    setPages(prev => prev.map(p => 
+    updatePagesWithHistory(prev => prev.map(p => 
       p.originalIndex === originalIndex ? { ...p, selected: !p.selected } : p
     ));
   };
 
   // Reorder Pages
   const handleReorder = (newPages: PDFPage[]) => {
-      setPages(newPages.map((p, idx) => ({ ...p, pageNumber: idx + 1 })));
+      updatePagesWithHistory(() => newPages.map((p, idx) => ({ ...p, pageNumber: idx + 1 })));
   };
 
-  const selectAll = () => setPages(prev => prev.map(p => ({ ...p, selected: true })));
-  const deselectAll = () => setPages(prev => prev.map(p => ({ ...p, selected: false })));
+  const selectAll = () => updatePagesWithHistory(prev => prev.map(p => ({ ...p, selected: true })));
+  const deselectAll = () => updatePagesWithHistory(prev => prev.map(p => ({ ...p, selected: false })));
 
   // AI Analysis Handler
   const handleAiAutoSelect = async () => {
@@ -389,7 +478,7 @@ const App: React.FC = () => {
       isBlank: true,
     };
 
-    setPages(prev => {
+    updatePagesWithHistory(prev => {
       const updated = [...prev, blankPage];
       return updated.map((p, idx) => ({ ...p, pageNumber: idx + 1 }));
     });
@@ -431,7 +520,7 @@ const App: React.FC = () => {
       isBlank: true,
     };
 
-    setPages(prev => {
+    updatePagesWithHistory(prev => {
       const idxOfPage = prev.findIndex(p => p.originalIndex === targetIndex);
       if (idxOfPage === -1) return [...prev, blankPage];
       
@@ -443,7 +532,7 @@ const App: React.FC = () => {
 
   // Delete a page from the list
   const handleDeletePage = (targetIndex: number) => {
-    setPages(prev => {
+    updatePagesWithHistory(prev => {
       const updated = prev.filter(p => p.originalIndex !== targetIndex);
       return updated.map((p, idx) => ({ ...p, pageNumber: idx + 1 }));
     });
@@ -451,7 +540,7 @@ const App: React.FC = () => {
 
   // Rotate a page by 90 degrees clockwise
   const handleRotatePage = (targetIndex: number) => {
-    setPages(prev => prev.map(p => {
+    updatePagesWithHistory(prev => prev.map(p => {
       if (p.originalIndex === targetIndex) {
         const nextRotation = ((p.rotation || 0) + 90) % 360;
         return { ...p, rotation: nextRotation };
@@ -479,6 +568,8 @@ const App: React.FC = () => {
       // Mark as blank and select it
       const updatedPages = loadedPages.map(p => ({ ...p, isBlank: true, selected: true }));
       setPages(updatedPages);
+      setHistory([]);
+      setFuture([]);
     } catch (err) {
       console.error(err);
       setError('Lỗi khi tạo tài liệu trắng mới.');
@@ -507,6 +598,8 @@ const App: React.FC = () => {
   const resetApp = () => {
     setFile(null);
     setPages([]);
+    setHistory([]);
+    setFuture([]);
     setUploadedFiles([]);
     setError(null);
     setSelectionMode(SelectionMode.MANUAL);
@@ -602,6 +695,23 @@ const App: React.FC = () => {
                 ) : (
                   <>
                     <button
+                        onClick={handleUndo}
+                        disabled={history.length === 0}
+                        className="p-2 text-slate-500 hover:text-teal-600 hover:bg-teal-50 disabled:opacity-30 disabled:hover:bg-transparent rounded-full transition-colors"
+                        title="Hoàn tác (Ctrl + Z)"
+                    >
+                        ↩️
+                    </button>
+                    <button
+                        onClick={handleRedo}
+                        disabled={future.length === 0}
+                        className="p-2 text-slate-500 hover:text-teal-600 hover:bg-teal-50 disabled:opacity-30 disabled:hover:bg-transparent rounded-full transition-colors"
+                        title="Làm lại (Ctrl + Y)"
+                    >
+                        ↪️
+                    </button>
+
+                    <button
                         onClick={() => setIsPreviewModalOpen(true)}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-teal-50 text-slate-700 hover:text-teal-700 border border-slate-200 hover:border-teal-300 rounded-lg text-xs font-bold transition-all shadow-2xs"
                         title="Mở cửa sổ xem trước trọn bộ tài liệu PDF"
@@ -694,7 +804,15 @@ const App: React.FC = () => {
               onDeletePage={handleDeletePage}
               onAddBlankPageAfter={handleAddBlankPageAfter}
               onRotatePage={handleRotatePage}
-              onSelectRange={() => {}} // Not implemented for brevity, can be added later
+              onSelectRange={handleSelectRange}
+              onSelectEven={handleSelectEven}
+              onSelectOdd={handleSelectOdd}
+              onInvertSelection={handleInvertSelection}
+              onSelectBlank={handleSelectBlank}
+              canUndo={history.length > 0}
+              canRedo={future.length > 0}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
             />
           )}
         </div>
