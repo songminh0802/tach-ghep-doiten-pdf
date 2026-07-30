@@ -47,6 +47,8 @@ interface SidebarProps {
   onDownloadUploadedFile?: (item: UploadedFileItem) => void;
   onDownloadAllUploadedFilesZip?: () => void;
   onAiSuggestNameForItem?: (item: UploadedFileItem) => void;
+  useAiChapterNaming?: boolean;
+  setUseAiChapterNaming?: (enabled: boolean) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -73,7 +75,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRenameUploadedFile,
   onDownloadUploadedFile,
   onDownloadAllUploadedFilesZip,
-  onAiSuggestNameForItem
+  onAiSuggestNameForItem,
+  useAiChapterNaming = true,
+  setUseAiChapterNaming
 }) => {
   // 4 Tabs: 'preview' (Xem trước) | 'rename' (Đổi tên) | 'split' (Tách file) | 'merge' (Gộp file)
   const [activeTab, setActiveTab] = useState<'preview' | 'rename' | 'split' | 'merge'>('preview');
@@ -659,6 +663,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </span>
               </div>
 
+              {/* ✨ AI Smart Chapter Naming Toggle Card */}
+              <div className="p-3.5 bg-gradient-to-br from-amber-50/90 via-orange-50/60 to-yellow-50/50 border border-amber-200/80 rounded-2xl shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="ai-chapter-naming-toggle" className="flex items-center gap-2 cursor-pointer font-bold text-xs text-amber-900">
+                    <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-xs">
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </div>
+                    <span>AI tự động đặt tên từng file con</span>
+                  </label>
+                  <input
+                    id="ai-chapter-naming-toggle"
+                    type="checkbox"
+                    checked={useAiChapterNaming}
+                    onChange={(e) => setUseAiChapterNaming?.(e.target.checked)}
+                    className="w-4 h-4 text-amber-600 bg-white border-amber-300 rounded focus:ring-amber-500 cursor-pointer"
+                  />
+                </div>
+                <p className="text-[11px] text-amber-800/80 font-medium leading-relaxed pl-8">
+                  Gemini AI tự động đọc nội dung từng trang/chương để đặt tên file ý nghĩa (VD: <code className="bg-amber-100/80 px-1 py-0.5 rounded text-amber-900 font-semibold">01_Gioi_thieu.pdf</code>, <code className="bg-amber-100/80 px-1 py-0.5 rounded text-amber-900 font-semibold">02_Chuong1.pdf</code>) khi tách file.
+                </p>
+              </div>
+
               {/* Option 1: Tách thành các file PDF rời */}
               <div className="p-4 bg-gradient-to-br from-blue-50/90 to-sky-50/50 border border-blue-200/80 rounded-2xl hover:border-blue-300 transition-all shadow-2xs space-y-3">
                 <div>
@@ -676,7 +702,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed group"
                 >
                   <FileStack className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
-                  <span>Tách & Tải các file lẻ ({selectedCount} file)</span>
+                  <span>{useAiChapterNaming ? "✨ Tách & Đặt tên AI các file lẻ" : `Tách & Tải các file lẻ (${selectedCount} file)`}</span>
                 </button>
               </div>
 
@@ -697,7 +723,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed group"
                 >
                   <Archive className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
-                  <span>Tải xuống gói file .ZIP ({selectedCount} trang)</span>
+                  <span>{useAiChapterNaming ? "✨ Tải gói .ZIP (Tên file AI thông minh)" : `Tải xuống gói file .ZIP (${selectedCount} trang)`}</span>
                 </button>
               </div>
             </section>

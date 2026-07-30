@@ -133,3 +133,70 @@ export const suggestFileNameWithAI = async (
     throw new Error("Không thể đặt tên tự động bằng AI lúc này.");
   }
 };
+
+/**
+ * Suggests short, meaningful filenames for a list of pages/sections (e.g. chapters, lessons, sections)
+ * based on their thumbnail images using Gemini.
+ * Returns a mapping of pageNumber (1-based) to suggested filename.
+ */
+export const suggestChapterNamesWithAI = async (
+  pages: { pageNumber: number; thumbnailUrl: string; isBlank?: boolean }[],
+  originalName: string
+): Promise<Record<number, string>> => {
+  try {
+    const parts: any[] = [];
+    parts.push({
+      text: `Bạn là trợ lý AI chuyên xử lý tài liệu PDF.
+      Nhiệm vụ: Dưới đây là danh sách các trang tài liệu PDF của file "${originalName}" sẽ được tách thành các file riêng biệt.
+      Hãy xem ảnh thu nhỏ của từng trang và đề xuất TÊN FILE NGẮN GỌN, CHUYÊN NGHIỆP cho mỗi trang/chương đó (không ký tự đặc biệt, dùng gạch dưới '_' thay khoảng trắng, tối đa 6 từ, có đánh số thứ tự 01_, 02_, 03_ ở đầu để dễ sắp xếp).
+      Ví dụ: 01_Gioi_thieu, 02_Chuong_1_Hinh_hoc, 03_Bai_tap, 04_Phu_luc...
+      
+      Trả về kết quả dưới dạng JSON là một Object, với key là số trang (pageNumber dưới dạng string "1", "2"...) và value là tên file đề xuất (không kèm đuôi .pdf).
+      Ví dụ format JSON mong muốn:
+      {
+        "1": "01_Gioi_thieu",
+        "2": "02_Chuong_1_Hinh_hoc"
+      }
+      `
+    });
+
+    const limitedPages = pages.slice(0, 25);
+    limitedPages.forEach((p) => {
+      if (p.isBlank || !p.thumbnailUrl) return;
+      const base64Data = p.thumbnailUrl.split(',')[1];
+      if (base64Data) {
+        parts.push({
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: base64Data
+          }
+        });
+        parts.push({ text: `Page ${p.pageNumber}` });
+      }
+    });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: { parts },
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    const json = JSON.parse(response.text || "{}");
+    const result: Record<number, string> = {};
+    for (const key in json) {
+      const pageNum = parseInt(key, 10);
+      if (!isNaN(pageNum) && typeof json[key] === 'string') {
+        const cleanName = json[key].replace(/[^a-zA-Z0-9_.-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+        if (cleanName) {
+          result[pageNum] = cleanName;
+        }
+      }
+    }
+    return result;
+  } catch (error) {
+    console.error("Gemini Chapter Naming Error:", error);
+    return {};
+  }
+};

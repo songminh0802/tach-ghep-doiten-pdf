@@ -117,7 +117,8 @@ export const extractSeparatePages = async (
 export const createZipFromPages = async (
   originalFile: File,
   selectedPages: PDFPage[],
-  originalFileName: string
+  originalFileName: string,
+  customNames?: Record<number, string>
 ): Promise<Blob> => {
   const zip = new JSZip();
   const blobs = await extractSeparatePages(originalFile, selectedPages);
@@ -127,8 +128,10 @@ export const createZipFromPages = async (
 
   blobs.forEach((blob, index) => {
     const pageInfo = selectedPages[index];
+    const aiName = customNames ? customNames[pageInfo.pageNumber] : undefined;
     const pageSuffix = pageInfo.isBlank ? `blank_page_${index + 1}` : `page_${pageInfo.pageNumber}`;
-    zip.file(`${baseName}_${pageSuffix}.pdf`, blob);
+    const fileName = aiName ? `${aiName}.pdf` : `${baseName}_${pageSuffix}.pdf`;
+    zip.file(fileName, blob);
   });
 
   const content = await zip.generateAsync({ type: "blob" });

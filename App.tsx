@@ -4,7 +4,7 @@ import { UploadCloud, AlertCircle, Sparkles, RefreshCw, Download, Split, Merge, 
 import { Sidebar } from './components/Sidebar';
 import { PDFViewer } from './components/PDFViewer';
 import { loadPDFAndRenderThumbnails, splitPDF, extractSeparatePages, createZipFromPages, mergePDFs, createBlankPDF, createZipFromFiles, normalizeUploadedFiles } from './services/pdfService';
-import { analyzeSplitPoints, suggestFileNameWithAI } from './services/geminiService';
+import { analyzeSplitPoints, suggestFileNameWithAI, suggestChapterNamesWithAI } from './services/geminiService';
 import { PDFPage, SelectionMode, ProcessingState, UploadedFileItem } from './types';
 import { Button } from './components/Button';
 
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   });
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [isAiNaming, setIsAiNaming] = useState(false);
+  const [useAiChapterNaming, setUseAiChapterNaming] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [outputFileName, setOutputFileName] = useState<string>('');
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -289,18 +290,29 @@ const App: React.FC = () => {
       if (!file) return;
       const selectedPages = pages.filter(p => p.selected);
 
-      setProcessingState({ isProcessing: true, message: 'Đang tách từng trang...', progress: 50 });
+      setProcessingState({ isProcessing: true, message: useAiChapterNaming ? '🤖 Gemini đang đọc nội dung để đặt tên cho từng file con...' : 'Đang tách từng trang...', progress: 30 });
 
       try {
           const finalFileName = outputFileName.trim() || file.name;
           const baseName = finalFileName.replace(/\.pdf$/i, '');
           
+          let chapterNames: Record<number, string> | undefined = undefined;
+          if (useAiChapterNaming) {
+            try {
+              chapterNames = await suggestChapterNamesWithAI(selectedPages, file.name);
+            } catch (aiErr) {
+              console.warn("AI chapter naming fallback:", aiErr);
+            }
+          }
+
+          setProcessingState({ isProcessing: true, message: 'Đang xuất các file lẻ...', progress: 70 });
           const blobs = await extractSeparatePages(file, selectedPages);
           blobs.forEach((blob, i) => {
              const pageInfo = selectedPages[i];
-             const pageName = pageInfo.isBlank ? `blank_page_${i + 1}` : `page_${pageInfo.pageNumber}`;
+             const aiName = chapterNames ? chapterNames[pageInfo.pageNumber] : undefined;
+             const downloadName = aiName ? `${aiName}.pdf` : `${pageInfo.isBlank ? `blank_page_${i + 1}` : `page_${pageInfo.pageNumber}`}_${baseName}.pdf`;
              setTimeout(() => {
-                 downloadBlob(blob, `${pageName}_${baseName}.pdf`);
+                 downloadBlob(blob, downloadName);
              }, i * 500);
           });
       } catch (err) {
@@ -308,20 +320,30 @@ const App: React.FC = () => {
       } finally {
         setProcessingState({ isProcessing: false, message: '', progress: 0 });
       }
-  }
+  };
 
   // Handle Download ZIP
   const handleExtractZip = async () => {
       if (!file) return;
       const selectedPages = pages.filter(p => p.selected);
 
-      setProcessingState({ isProcessing: true, message: 'Đang nén file ZIP...', progress: 50 });
+      setProcessingState({ isProcessing: true, message: useAiChapterNaming ? '🤖 Gemini đang phân tích và đặt tên tự động cho từng file con trong ZIP...' : 'Đang nén file ZIP...', progress: 30 });
 
       try {
         const finalFileName = outputFileName.trim() || file.name;
         const baseName = finalFileName.replace(/\.pdf$/i, '');
         
-        const zipBlob = await createZipFromPages(file, selectedPages, file.name);
+        let chapterNames: Record<number, string> | undefined = undefined;
+        if (useAiChapterNaming) {
+          try {
+            chapterNames = await suggestChapterNamesWithAI(selectedPages, file.name);
+          } catch (aiErr) {
+            console.warn("AI chapter naming fallback:", aiErr);
+          }
+        }
+
+        setProcessingState({ isProcessing: true, message: 'Đang đóng gói ZIP...', progress: 70 });
+        const zipBlob = await createZipFromPages(file, selectedPages, file.name, chapterNames);
         downloadBlob(zipBlob, `${baseName}.zip`);
       } catch (err) {
         console.error(err);
@@ -514,6 +536,8 @@ const App: React.FC = () => {
         setOutputFileName={setOutputFileName}
         onAiSuggestFileName={handleAiSuggestFileName}
         isAiNaming={isAiNaming}
+        useAiChapterNaming={useAiChapterNaming}
+        setUseAiChapterNaming={setUseAiChapterNaming}
         onUploadFile={handleFileChange}
         uploadedFiles={uploadedFiles}
         onRenameUploadedFile={handleRenameUploadedFile}
