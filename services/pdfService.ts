@@ -288,79 +288,197 @@ export const normalizeUploadedFiles = async (
 };
 
 export const convertTextToPDF = async (text: string, outputFileName: string, title?: string): Promise<File> => {
-  const pageWidth = 1190;
-  const pageHeight = 1684;
-  const margin = 100;
-  const maxLineWidth = pageWidth - margin * 2;
-  const lineHeight = 42;
+  // Khổ A4 sắc nét (ratio 1 : 1.414) tại 150 DPI
+  const pageWidth = 1240;
+  const pageHeight = 1754;
+  const marginX = 120;
+  const marginY = 120;
+  const maxLineWidth = pageWidth - marginX * 2; // 1000px
+  const lineHeight = 46; // khoảng cách giữa các dòng
+  const paragraphSpacing = 20; // khoảng cách giữa các đoạn văn
 
   const canvas = document.createElement('canvas');
   canvas.width = pageWidth;
   canvas.height = pageHeight;
   const ctx = canvas.getContext('2d')!;
 
-  // Prepare lines
-  const paragraphs = text.replace(/\r\n/g, '\n').split('\n');
-  const allLines: string[] = [];
+  // 1. Chuẩn hóa và làm sạch các đoạn văn
+  const rawParagraphs = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split('\n');
 
-  if (title) {
-    allLines.push(title.toUpperCase());
-    allLines.push('---------------------------------------------------------');
-    allLines.push('');
-  }
+  // Hàm phụ: Làm sạch đoạn văn & gắn dấu câu lẻ vào từ trước đó (chống rớt dấu câu / nhảy chữ bất thường)
+  const cleanParagraphWords = (p: string): string[] => {
+    if (!p.trim()) return [];
+    const normalized = p
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\s+([,.\/;:?!\]\)\}\”\’])/g, '$1')
+      .trim();
+    return normalized.split(' ').filter(w => w.length > 0);
+  };
 
-  ctx.font = '28px "Times New Roman", Arial, sans-serif';
-  for (const p of paragraphs) {
-    if (p.trim() === '') {
-      allLines.push('');
-      continue;
-    }
-    const words = p.split(' ');
+  // Hàm phụ: Ngắt dòng chuẩn xác theo đúng font đang dùng
+  const wrapWordsToLines = (words: string[], fontStyle: string): string[] => {
+    if (words.length === 0) return [''];
+    ctx.font = fontStyle;
+    const lines: string[] = [];
     let currentLine = '';
-    for (const w of words) {
+
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
       const testLine = currentLine ? `${currentLine} ${w}` : w;
       const metrics = ctx.measureText(testLine);
-      if (metrics.width > maxLineWidth && currentLine) {
-        allLines.push(currentLine);
-        currentLine = w;
+
+      if (metrics.width > maxLineWidth) {
+        if (currentLine) {
+          lines.push(currentLine);
+          currentLine = w;
+          // Trường hợp bản thân 1 từ liền mạch dài hơn maxLineWidth (ví dụ link URL rất dài)
+          while (ctx.measureText(currentLine).width > maxLineWidth && currentLine.length > 1) {
+            let splitIdx = currentLine.length - 1;
+            while (splitIdx > 1 && ctx.measureText(currentLine.substring(0, splitIdx)).width > maxLineWidth) {
+              splitIdx--;
+            }
+            lines.push(currentLine.substring(0, splitIdx));
+            currentLine = currentLine.substring(splitIdx);
+          }
+        } else {
+          // Từ đầu tiên của dòng vượt maxLineWidth -> buộc tách ký tự
+          let splitIdx = w.length - 1;
+          while (splitIdx > 1 && ctx.measureText(w.substring(0, splitIdx)).width > maxLineWidth) {
+            splitIdx--;
+          }
+          lines.push(w.substring(0, splitIdx));
+          currentLine = w.substring(splitIdx);
+        }
       } else {
         currentLine = testLine;
       }
     }
     if (currentLine) {
-      allLines.push(currentLine);
+      lines.push(currentLine);
+    }
+    return lines;
+  };
+
+  interface RenderLine {
+    text: string;
+    isTitle?: boolean;
+    isHeader?: boolean;
+    isEmpty?: boolean;
+    extraSpacingAfter?: number;
+  }
+
+  const renderLines: RenderLine[] = [];
+
+  // Thêm tiêu đề tài liệu nếu có
+  if (title && title.trim()) {
+    renderLines.push({
+      text: title.trim().toUpperCase(),
+      isTitle: true,
+      extraSpacingAfter: 15,
+    });
+    renderLines.push({
+      text: '────────────────────────────────────────────────────────',
+      isHeader: true,
+      extraSpacingAfter: 25,
+    });
+  }
+
+  // 2. Xử lý các đoạn văn và tạo danh sách dòng hiển thị
+  for (const p of rawParagraphs) {
+    if (!p.trim()) {
+      renderLines.push({ text: '', isEmpty: true });
+      continue;
+    }
+
+    const words = cleanParagraphWords(p);
+    if (words.length === 0) {
+      renderLines.push({ text: '', isEmpty: true });
+      continue;
+    }
+
+    // Kiểm tra dòng có phải là tiêu đề chương/mục không (ngắn và bắt đầu bằng từ khoá cấu trúc)
+    const isHeaderLine = /^(CHƯƠNG|BÀI|PHẦN|CHAPTER|MỤC|ĐỀ THI|BẢNG|HƯỚNG DẪN|DANH SÁCH)\b/i.test(p.trim()) && words.length <= 16;
+    const fontToUse = isHeaderLine
+      ? 'bold 30px "Times New Roman", Arial, sans-serif'
+      : '28px "Times New Roman", Arial, sans-serif';
+
+    const wrapped = wrapWordsToLines(words, fontToUse);
+    for (let i = 0; i < wrapped.length; i++) {
+      const isLastInParagraph = i === wrapped.length - 1;
+      renderLines.push({
+        text: wrapped[i],
+        isHeader: isHeaderLine,
+        extraSpacingAfter: isLastInParagraph ? paragraphSpacing : 0,
+      });
     }
   }
 
-  const maxLinesPerPage = Math.floor((pageHeight - margin * 2) / lineHeight);
+  // 3. Vẽ trang sang định dạng PDFDocument A4
   const pdfDoc = await PDFDocument.create();
-
   let lineIdx = 0;
-  while (lineIdx < allLines.length || lineIdx === 0) {
+
+  while (lineIdx < renderLines.length || lineIdx === 0) {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, pageWidth, pageHeight);
 
-    ctx.fillStyle = '#1e293b';
-    ctx.font = '28px "Times New Roman", Arial, sans-serif';
+    let currentY = marginY;
+    const maxY = pageHeight - marginY;
 
-    let y = margin;
+    // Đường kẻ trang trí phía trên
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(marginX, 70);
+    ctx.lineTo(pageWidth - marginX, 70);
+    ctx.stroke();
+
+    // Dòng ghi chú cuối trang
+    ctx.fillStyle = '#64748b';
+    ctx.font = '20px "Times New Roman", Arial, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`Tài liệu chuyển đổi chuẩn hoá - SmartSplit-PDF`, pageWidth - marginX, pageHeight - 50);
+    ctx.textAlign = 'left';
+
     let linesOnPage = 0;
-    while (lineIdx < allLines.length && linesOnPage < maxLinesPerPage) {
-      const line = allLines[lineIdx];
-      if (line === title?.toUpperCase()) {
-        ctx.font = 'bold 36px "Times New Roman", Arial, sans-serif';
-        ctx.fillStyle = '#0f172a';
-      } else {
-        ctx.font = '28px "Times New Roman", Arial, sans-serif';
-        ctx.fillStyle = '#1e293b';
+    while (lineIdx < renderLines.length) {
+      const item = renderLines[lineIdx];
+
+      let stepHeight = lineHeight;
+      if (item.isTitle) stepHeight = 56;
+      else if (item.isHeader) stepHeight = 48;
+      else if (item.isEmpty) stepHeight = 24;
+
+      if (item.extraSpacingAfter) {
+        stepHeight += item.extraSpacingAfter;
       }
-      ctx.fillText(line, margin, y);
-      y += lineHeight;
+
+      if (currentY + stepHeight > maxY && linesOnPage > 0) {
+        break;
+      }
+
+      if (!item.isEmpty) {
+        if (item.isTitle) {
+          ctx.font = 'bold 36px "Times New Roman", Arial, sans-serif';
+          ctx.fillStyle = '#0f172a';
+        } else if (item.isHeader) {
+          ctx.font = 'bold 30px "Times New Roman", Arial, sans-serif';
+          ctx.fillStyle = '#1e293b';
+        } else {
+          ctx.font = '28px "Times New Roman", Arial, sans-serif';
+          ctx.fillStyle = '#1e293b';
+        }
+        ctx.fillText(item.text, marginX, currentY);
+      }
+
+      currentY += stepHeight;
       lineIdx++;
       linesOnPage++;
     }
 
-    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.95);
     const base64 = jpegDataUrl.split(',')[1];
     const len = atob(base64).length;
     const bytes = new Uint8Array(len);
@@ -378,7 +496,7 @@ export const convertTextToPDF = async (text: string, outputFileName: string, tit
       height: 842,
     });
 
-    if (lineIdx >= allLines.length) break;
+    if (lineIdx >= renderLines.length) break;
   }
 
   const pdfBytes = await pdfDoc.save();
@@ -410,9 +528,27 @@ export const convertFileToPDF = async (
     if (onProgress) onProgress(`Đang trích xuất và chuyển file Word "${file.name}" sang PDF...`);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      const text = result.value || `Tài liệu: ${file.name}\n\n(Nội dung trống hoặc định dạng hình ảnh)`;
-      return await convertTextToPDF(text, targetPdfName, baseName);
+      // Ưu tiên dùng convertToHtml để giữ trọn vẹn từng câu trong đoạn văn, tránh lỗi gãy câu giữa chừng của XML raw text
+      const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
+      let cleanText = '';
+      if (htmlResult && htmlResult.value) {
+        const doc = new DOMParser().parseFromString(htmlResult.value, 'text/html');
+        const blocks: string[] = [];
+        doc.body.childNodes.forEach((node) => {
+          const textContent = (node.textContent || '').replace(/[ \t]+/g, ' ').trim();
+          if (textContent) {
+            blocks.push(textContent);
+          } else if (node.nodeName === 'BR' || node.nodeName === 'P' || node.nodeName === 'DIV') {
+            blocks.push('');
+          }
+        });
+        cleanText = blocks.join('\n');
+      }
+      if (!cleanText.trim()) {
+        const rawResult = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+        cleanText = rawResult.value || `Tài liệu: ${file.name}\n\n(Nội dung trống hoặc định dạng hình ảnh)`;
+      }
+      return await convertTextToPDF(cleanText, targetPdfName, baseName);
     } catch (e) {
       console.warn('Mammoth docx parse fail, fallback to text', e);
       return await convertTextToPDF(`Tài liệu Word: ${file.name}\n\nĐã chuyển đổi sang dạng PDF.`, targetPdfName, baseName);
