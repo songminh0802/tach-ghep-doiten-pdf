@@ -520,17 +520,55 @@ export const convertWordToPDF = async (
   outputFileName: string,
   onProgress?: (message: string) => void
 ): Promise<File> => {
-  if (onProgress) onProgress(`Đang dàn trang tài liệu Word "${file.name}" nguyên bản 100%...`);
+  if (onProgress) onProgress(`Đang dàn trang tài liệu Word "${file.name}" chuẩn gốc 100%...`);
 
   try {
     const arrayBuffer = await file.arrayBuffer();
+    const A4_WIDTH_PX = 794;  // 210mm chuẩn A4 CSS
+    const A4_HEIGHT_PX = 1123; // 297mm chuẩn A4 CSS
+    const scale = 2; // Retina 2x sắc nét
+
     const container = document.createElement('div');
     container.style.position = 'absolute';
     container.style.top = '-99999px';
     container.style.left = '-99999px';
-    container.style.width = '1000px';
+    container.style.width = `${A4_WIDTH_PX}px`;
     container.style.backgroundColor = '#ffffff';
     container.style.zIndex = '-1000';
+
+    // CSS Override triệt để shadow, background xám và lề của docx-preview
+    const styleOverride = document.createElement('style');
+    styleOverride.innerHTML = `
+      .docx-wrapper {
+        background: #ffffff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: ${A4_WIDTH_PX}px !important;
+      }
+      .docx-page {
+        box-shadow: none !important;
+        margin: 0 !important;
+        border: none !important;
+        background: #ffffff !important;
+        width: ${A4_WIDTH_PX}px !important;
+        min-height: ${A4_HEIGHT_PX}px !important;
+        padding: 50px 60px !important; /* Lề chuẩn A4 Word */
+      }
+      .docx-page table {
+        border-collapse: collapse !important;
+        width: 100% !important;
+        table-layout: auto !important;
+      }
+      .docx-page table td, .docx-page table th {
+        box-sizing: border-box !important;
+        word-break: break-word !important;
+      }
+      * {
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+      }
+    `;
+    container.appendChild(styleOverride);
     document.body.appendChild(container);
 
     try {
@@ -547,73 +585,62 @@ export const convertWordToPDF = async (
         useMathMLPolyfill: false,
       });
 
-      // Lấy toàn bộ các trang chuẩn A4 được docx-preview tạo ra (thường mang class .docx-page)
       const pageElements = Array.from(container.querySelectorAll('.docx-page')) as HTMLElement[];
       const pdfDoc = await PDFDocument.create();
-      const scale = 2; // Retina 2x sắc nét
+      const targetCanvasWidth = A4_WIDTH_PX * scale;  // 1588
+      const targetCanvasHeight = A4_HEIGHT_PX * scale; // 2246
 
-      if (pageElements.length > 0) {
-        for (let i = 0; i < pageElements.length; i++) {
-          if (onProgress) onProgress(`Đang xuất trang PDF từ Word (${i + 1}/${pageElements.length})...`);
-          const pageEl = pageElements[i];
-          const pageCanvas = await html2canvas(pageEl, {
-            scale,
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff',
-          });
+      const elementsToRender: HTMLElement[] = pageElements.length > 0 ? pageElements : [container];
+      let totalExportedPages = 0;
 
-          const jpegDataUrl = pageCanvas.toDataURL('image/jpeg', 0.95);
-          const base64 = jpegDataUrl.split(',')[1];
-          const len = atob(base64).length;
-          const bytes = new Uint8Array(len);
-          const binary = atob(base64);
-          for (let j = 0; j < len; j++) {
-            bytes[j] = binary.charCodeAt(j);
-          }
+      for (let i = 0; i < elementsToRender.length; i++) {
+        const el = elementsToRender[i];
+        if (onProgress) onProgress(`Đang xuất trang tài liệu Word (${i + 1}/${elementsToRender.length})...`);
 
-          const jpgImage = await pdfDoc.embedJpg(bytes);
-          const pdfPage = pdfDoc.addPage([595, 842]);
-          pdfPage.drawImage(jpgImage, {
-            x: 0,
-            y: 0,
-            width: 595,
-            height: 842,
-          });
-        }
-      } else {
-        const fullCanvas = await html2canvas(container, {
+        const pageCanvas = await html2canvas(el, {
           scale,
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
+          windowWidth: A4_WIDTH_PX,
         });
-        const A4_WIDTH_PX = 794;
-        const A4_HEIGHT_PX = 1123;
-        const pageCanvasWidth = A4_WIDTH_PX * scale;
-        const pageCanvasHeight = A4_HEIGHT_PX * scale;
-        const totalPages = Math.max(1, Math.ceil(fullCanvas.height / pageCanvasHeight));
 
-        for (let i = 0; i < totalPages; i++) {
-          if (onProgress) onProgress(`Đang xuất trang PDF (${i + 1}/${totalPages})...`);
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = pageCanvasWidth;
-          pageCanvas.height = pageCanvasHeight;
-          const pageCtx = pageCanvas.getContext('2d')!;
+        // Tính chính xác số trang A4 có trong block canvas (phòng trường hợp Word không có page break làm canvas cao 3-4 trang)
+        const subPagesCount = Math.max(1, Math.ceil(pageCanvas.height / targetCanvasHeight));
 
-          pageCtx.fillStyle = '#FFFFFF';
-          pageCtx.fillRect(0, 0, pageCanvasWidth, pageCanvasHeight);
+        for (let subIdx = 0; subIdx < subPagesCount; subIdx++) {
+          totalExportedPages++;
+          if (onProgress) onProgress(`Đang hoàn thiện trang PDF số ${totalExportedPages}...`);
 
-          const sourceY = i * pageCanvasHeight;
-          const sourceHeight = Math.min(pageCanvasHeight, fullCanvas.height - sourceY);
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = targetCanvasWidth;
+          sliceCanvas.height = targetCanvasHeight;
+          const sliceCtx = sliceCanvas.getContext('2d')!;
 
-          pageCtx.drawImage(
-            fullCanvas,
-            0, sourceY, pageCanvasWidth, sourceHeight,
-            0, 0, pageCanvasWidth, sourceHeight
+          // Nền trắng chuẩn cho trang
+          sliceCtx.fillStyle = '#FFFFFF';
+          sliceCtx.fillRect(0, 0, targetCanvasWidth, targetCanvasHeight);
+
+          const sourceY = subIdx * targetCanvasHeight;
+          const sourceHeight = Math.min(targetCanvasHeight, pageCanvas.height - sourceY);
+
+          sliceCtx.drawImage(
+            pageCanvas,
+            0, sourceY, targetCanvasWidth, sourceHeight,
+            0, 0, targetCanvasWidth, sourceHeight
           );
 
-          const jpegDataUrl = pageCanvas.toDataURL('image/jpeg', 0.95);
+          // Thêm footer trang nhã dưới cùng
+          sliceCtx.fillStyle = '#64748b';
+          sliceCtx.font = `${14 * scale}px "Times New Roman", Arial, sans-serif`;
+          sliceCtx.textAlign = 'right';
+          sliceCtx.fillText(
+            `SmartSplit-PDF  |  Trang ${totalExportedPages}`,
+            targetCanvasWidth - 70 * scale,
+            targetCanvasHeight - 30 * scale
+          );
+
+          const jpegDataUrl = sliceCanvas.toDataURL('image/jpeg', 0.95);
           const base64 = jpegDataUrl.split(',')[1];
           const len = atob(base64).length;
           const bytes = new Uint8Array(len);
@@ -623,7 +650,7 @@ export const convertWordToPDF = async (
           }
 
           const jpgImage = await pdfDoc.embedJpg(bytes);
-          const pdfPage = pdfDoc.addPage([595, 842]);
+          const pdfPage = pdfDoc.addPage([595, 842]); // A4 in points (595 x 842)
           pdfPage.drawImage(jpgImage, {
             x: 0,
             y: 0,
