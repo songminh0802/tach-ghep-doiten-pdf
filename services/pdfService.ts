@@ -554,15 +554,28 @@ export const convertWordToPDF = async (
         min-height: ${A4_HEIGHT_PX}px !important;
         padding: 50px 60px !important; /* Lề chuẩn A4 Word */
       }
+      /* KHÔNG override width hay table-layout của bảng trong Word để giữ nguyên 100% tỷ lệ cột gốc */
       .docx-page table {
-        border-collapse: collapse !important;
-        width: 100% !important;
-        table-layout: auto !important;
+        border-collapse: collapse;
+        max-width: 100%;
+        margin-left: auto;
+        margin-right: auto;
       }
-      .docx-page table td, .docx-page table th {
-        box-sizing: border-box !important;
-        word-break: break-word !important;
+      /* Đảm bảo đường viền bảng hiển thị đen rõ nét khi chụp html2canvas */
+      .docx-page table td[style*="border"],
+      .docx-page table th[style*="border"],
+      .docx-page table[style*="border"] td,
+      .docx-page table[style*="border"] th {
+        border-color: #000000 !important;
       }
+      /* Đảm bảo chữ trong ô bảng không bị ngắt từ sai (dùng normal thay vì break-word) */
+      .docx-page table td,
+      .docx-page table th {
+        box-sizing: border-box;
+        word-break: normal;
+        word-wrap: break-word;
+      }
+      /* Giúp font chữ tiếng Việt hiển thị siêu mịn và chuẩn khoảng cách */
       * {
         -webkit-font-smoothing: antialiased;
         text-rendering: geometricPrecision;
