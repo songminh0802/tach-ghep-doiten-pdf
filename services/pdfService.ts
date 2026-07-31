@@ -2,6 +2,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument, degrees } from 'pdf-lib';
 import JSZip from 'jszip';
 import mammoth from 'mammoth';
+import html2canvas from 'html2canvas';
 import { PDFPage } from '../types';
 
 // Configure worker.
@@ -287,220 +288,230 @@ export const normalizeUploadedFiles = async (
   return result;
 };
 
+export const convertHtmlToPDF = async (
+  htmlContent: string,
+  outputFileName: string,
+  onProgress?: (msg: string) => void
+): Promise<File> => {
+  if (onProgress) onProgress('Đang dàn trang A4 từ tài liệu...');
+
+  const A4_WIDTH_PX = 794; // 210mm chuẩn CSS (96 DPI)
+  const A4_HEIGHT_PX = 1123; // 297mm chuẩn CSS (96 DPI)
+  const scale = 2; // Độ sắc nét Retina 2x (1588 x 2246)
+
+  // Tạo container ẩn trong body để trình duyệt dàn trang native
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.top = '-99999px';
+  container.style.left = '-99999px';
+  container.style.width = `${A4_WIDTH_PX}px`;
+  container.style.backgroundColor = '#ffffff';
+  container.style.color = '#0f172a';
+  container.style.fontFamily = '"Times New Roman", Times, serif';
+  container.style.fontSize = '16px';
+  container.style.lineHeight = '1.5';
+  container.style.padding = '60px 70px'; // Lề chuẩn A4 (trên/dưới 60px, trái/phải 70px)
+  container.style.boxSizing = 'border-box';
+  container.style.zIndex = '-1000';
+
+  // CSS chuyên biệt cho tài liệu Word Việt Nam (bảng số liệu, 2 cột Quốc hiệu / Chữ ký, tiêu đề)
+  const style = document.createElement('style');
+  style.innerHTML = `
+    * {
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+    p {
+      margin: 0 0 10px 0;
+      text-align: justify;
+      word-wrap: break-word;
+      line-height: 1.5;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin: 14px 0 10px 0;
+      font-weight: 700;
+      color: #000000;
+      line-height: 1.3;
+      text-align: center;
+    }
+    h1 { font-size: 20px; text-transform: uppercase; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 16px; }
+    table {
+      width: 100% !important;
+      border-collapse: collapse;
+      margin: 14px 0;
+      table-layout: auto;
+    }
+    tr {
+      page-break-inside: avoid;
+    }
+    td, th {
+      border: 1px solid #475569;
+      padding: 8px 10px;
+      vertical-align: top;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+    th {
+      background-color: #f8fafc;
+      font-weight: bold;
+      text-align: center;
+    }
+    /* Xử lý riêng các bảng Quốc hiệu (UBND... - CỘNG HÒA...) và Chữ ký (THƯ KÝ - GVCN) không cần đường viền */
+    table.no-border td, table.no-border th {
+      border: none !important;
+      padding: 4px 6px;
+    }
+    ul, ol {
+      margin: 8px 0 10px 24px;
+      padding: 0;
+    }
+    li {
+      margin-bottom: 6px;
+      line-height: 1.5;
+    }
+    strong, b {
+      font-weight: bold;
+    }
+    em, i {
+      font-style: italic;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 10px auto;
+    }
+  `;
+
+  container.appendChild(style);
+
+  // Tạo phần nội dung tài liệu
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'document-content';
+  contentDiv.innerHTML = htmlContent;
+
+  // Nhận diện tự động bảng Quốc hiệu hoặc bảng Chữ ký để bỏ viền đen
+  const tables = contentDiv.querySelectorAll('table');
+  tables.forEach(table => {
+    const text = table.textContent || '';
+    const hasHeaderKeywords = /CỘNG HÒA XÃ HỘI|Độc lập – Tự do|UBND|TRƯỜNG THCS|BIÊN BẢN/i.test(text);
+    const hasSignatureKeywords = /THƯ KÝ|GVCN|HIỆU TRƯỞNG|Người lập|XÁC NHẬN/i.test(text);
+    const isSmallTable = table.rows.length <= 3 && table.rows[0]?.cells.length === 2;
+    if ((hasHeaderKeywords || hasSignatureKeywords) && isSmallTable) {
+      table.classList.add('no-border');
+      table.querySelectorAll('td, th').forEach(cell => {
+        (cell as HTMLElement).style.border = 'none';
+      });
+    }
+  });
+
+  container.appendChild(contentDiv);
+  document.body.appendChild(container);
+
+  try {
+    if (onProgress) onProgress('Đang tạo trang PDF chất lượng cao...');
+    const fullCanvas = await html2canvas(container, {
+      scale,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      windowWidth: A4_WIDTH_PX,
+    });
+
+    const pageCanvasWidth = A4_WIDTH_PX * scale; // 1588
+    const pageCanvasHeight = A4_HEIGHT_PX * scale; // 2246
+
+    const totalPages = Math.max(1, Math.ceil(fullCanvas.height / pageCanvasHeight));
+    const pdfDoc = await PDFDocument.create();
+
+    for (let i = 0; i < totalPages; i++) {
+      if (onProgress) onProgress(`Đang xuất trang PDF (${i + 1}/${totalPages})...`);
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = pageCanvasWidth;
+      pageCanvas.height = pageCanvasHeight;
+      const pageCtx = pageCanvas.getContext('2d')!;
+
+      // Nền trắng cho trang
+      pageCtx.fillStyle = '#FFFFFF';
+      pageCtx.fillRect(0, 0, pageCanvasWidth, pageCanvasHeight);
+
+      // Cắt phần trang tương ứng từ fullCanvas
+      const sourceY = i * pageCanvasHeight;
+      const sourceHeight = Math.min(pageCanvasHeight, fullCanvas.height - sourceY);
+
+      pageCtx.drawImage(
+        fullCanvas,
+        0, sourceY, pageCanvasWidth, sourceHeight,
+        0, 0, pageCanvasWidth, sourceHeight
+      );
+
+      // Thêm số trang góc dưới bên phải
+      pageCtx.fillStyle = '#64748b';
+      pageCtx.font = `${14 * scale}px "Times New Roman", Arial, sans-serif`;
+      pageCtx.textAlign = 'right';
+      pageCtx.fillText(
+        `Trang ${i + 1} / ${totalPages}  |  SmartSplit-PDF`,
+        pageCanvasWidth - 70 * scale,
+        pageCanvasHeight - 30 * scale
+      );
+
+      const jpegDataUrl = pageCanvas.toDataURL('image/jpeg', 0.95);
+      const base64 = jpegDataUrl.split(',')[1];
+      const len = atob(base64).length;
+      const bytes = new Uint8Array(len);
+      const binary = atob(base64);
+      for (let j = 0; j < len; j++) {
+        bytes[j] = binary.charCodeAt(j);
+      }
+
+      const jpgImage = await pdfDoc.embedJpg(bytes);
+      const pdfPage = pdfDoc.addPage([595, 842]); // Khổ A4 chuẩn trong PDF points
+      pdfPage.drawImage(jpgImage, {
+        x: 0,
+        y: 0,
+        width: 595,
+        height: 842,
+      });
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    return new File([pdfBytes], outputFileName, { type: 'application/pdf' });
+  } finally {
+    if (container.parentNode) {
+      container.parentNode.removeChild(container);
+    }
+  }
+};
+
 export const convertTextToPDF = async (text: string, outputFileName: string, title?: string): Promise<File> => {
-  // Khổ A4 sắc nét (ratio 1 : 1.414) tại 150 DPI
-  const pageWidth = 1240;
-  const pageHeight = 1754;
-  const marginX = 120;
-  const marginY = 120;
-  const maxLineWidth = pageWidth - marginX * 2; // 1000px
-  const lineHeight = 46; // khoảng cách giữa các dòng
-  const paragraphSpacing = 20; // khoảng cách giữa các đoạn văn
-
-  const canvas = document.createElement('canvas');
-  canvas.width = pageWidth;
-  canvas.height = pageHeight;
-  const ctx = canvas.getContext('2d')!;
-
-  // 1. Chuẩn hóa và làm sạch các đoạn văn
-  const rawParagraphs = text
+  const paragraphs = text
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .split('\n');
 
-  // Hàm phụ: Làm sạch đoạn văn & gắn dấu câu lẻ vào từ trước đó (chống rớt dấu câu / nhảy chữ bất thường)
-  const cleanParagraphWords = (p: string): string[] => {
-    if (!p.trim()) return [];
-    const normalized = p
-      .replace(/[ \t]+/g, ' ')
-      .replace(/\s+([,.\/;:?!\]\)\}\”\’])/g, '$1')
-      .trim();
-    return normalized.split(' ').filter(w => w.length > 0);
-  };
-
-  // Hàm phụ: Ngắt dòng chuẩn xác theo đúng font đang dùng
-  const wrapWordsToLines = (words: string[], fontStyle: string): string[] => {
-    if (words.length === 0) return [''];
-    ctx.font = fontStyle;
-    const lines: string[] = [];
-    let currentLine = '';
-
-    for (let i = 0; i < words.length; i++) {
-      const w = words[i];
-      const testLine = currentLine ? `${currentLine} ${w}` : w;
-      const metrics = ctx.measureText(testLine);
-
-      if (metrics.width > maxLineWidth) {
-        if (currentLine) {
-          lines.push(currentLine);
-          currentLine = w;
-          // Trường hợp bản thân 1 từ liền mạch dài hơn maxLineWidth (ví dụ link URL rất dài)
-          while (ctx.measureText(currentLine).width > maxLineWidth && currentLine.length > 1) {
-            let splitIdx = currentLine.length - 1;
-            while (splitIdx > 1 && ctx.measureText(currentLine.substring(0, splitIdx)).width > maxLineWidth) {
-              splitIdx--;
-            }
-            lines.push(currentLine.substring(0, splitIdx));
-            currentLine = currentLine.substring(splitIdx);
-          }
-        } else {
-          // Từ đầu tiên của dòng vượt maxLineWidth -> buộc tách ký tự
-          let splitIdx = w.length - 1;
-          while (splitIdx > 1 && ctx.measureText(w.substring(0, splitIdx)).width > maxLineWidth) {
-            splitIdx--;
-          }
-          lines.push(w.substring(0, splitIdx));
-          currentLine = w.substring(splitIdx);
-        }
-      } else {
-        currentLine = testLine;
-      }
-    }
-    if (currentLine) {
-      lines.push(currentLine);
-    }
-    return lines;
-  };
-
-  interface RenderLine {
-    text: string;
-    isTitle?: boolean;
-    isHeader?: boolean;
-    isEmpty?: boolean;
-    extraSpacingAfter?: number;
-  }
-
-  const renderLines: RenderLine[] = [];
-
-  // Thêm tiêu đề tài liệu nếu có
+  let htmlContent = '';
   if (title && title.trim()) {
-    renderLines.push({
-      text: title.trim().toUpperCase(),
-      isTitle: true,
-      extraSpacingAfter: 15,
-    });
-    renderLines.push({
-      text: '────────────────────────────────────────────────────────',
-      isHeader: true,
-      extraSpacingAfter: 25,
-    });
+    htmlContent += `<h1 style="text-align: center; margin-bottom: 24px; font-size: 20px; text-transform: uppercase;">${title.trim()}</h1><hr style="border: 0; border-top: 2px solid #cbd5e1; margin-bottom: 24px;" />`;
   }
 
-  // 2. Xử lý các đoạn văn và tạo danh sách dòng hiển thị
-  for (const p of rawParagraphs) {
+  for (const p of paragraphs) {
     if (!p.trim()) {
-      renderLines.push({ text: '', isEmpty: true });
-      continue;
-    }
-
-    const words = cleanParagraphWords(p);
-    if (words.length === 0) {
-      renderLines.push({ text: '', isEmpty: true });
-      continue;
-    }
-
-    // Kiểm tra dòng có phải là tiêu đề chương/mục không (ngắn và bắt đầu bằng từ khoá cấu trúc)
-    const isHeaderLine = /^(CHƯƠNG|BÀI|PHẦN|CHAPTER|MỤC|ĐỀ THI|BẢNG|HƯỚNG DẪN|DANH SÁCH)\b/i.test(p.trim()) && words.length <= 16;
-    const fontToUse = isHeaderLine
-      ? 'bold 30px "Times New Roman", Arial, sans-serif'
-      : '28px "Times New Roman", Arial, sans-serif';
-
-    const wrapped = wrapWordsToLines(words, fontToUse);
-    for (let i = 0; i < wrapped.length; i++) {
-      const isLastInParagraph = i === wrapped.length - 1;
-      renderLines.push({
-        text: wrapped[i],
-        isHeader: isHeaderLine,
-        extraSpacingAfter: isLastInParagraph ? paragraphSpacing : 0,
-      });
+      htmlContent += `<div style="height: 14px;"></div>`;
+    } else {
+      const escaped = p
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+      htmlContent += `<p>${escaped}</p>`;
     }
   }
 
-  // 3. Vẽ trang sang định dạng PDFDocument A4
-  const pdfDoc = await PDFDocument.create();
-  let lineIdx = 0;
-
-  while (lineIdx < renderLines.length || lineIdx === 0) {
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, pageWidth, pageHeight);
-
-    let currentY = marginY;
-    const maxY = pageHeight - marginY;
-
-    // Đường kẻ trang trí phía trên
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(marginX, 70);
-    ctx.lineTo(pageWidth - marginX, 70);
-    ctx.stroke();
-
-    // Dòng ghi chú cuối trang
-    ctx.fillStyle = '#64748b';
-    ctx.font = '20px "Times New Roman", Arial, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(`Tài liệu chuyển đổi chuẩn hoá - SmartSplit-PDF`, pageWidth - marginX, pageHeight - 50);
-    ctx.textAlign = 'left';
-
-    let linesOnPage = 0;
-    while (lineIdx < renderLines.length) {
-      const item = renderLines[lineIdx];
-
-      let stepHeight = lineHeight;
-      if (item.isTitle) stepHeight = 56;
-      else if (item.isHeader) stepHeight = 48;
-      else if (item.isEmpty) stepHeight = 24;
-
-      if (item.extraSpacingAfter) {
-        stepHeight += item.extraSpacingAfter;
-      }
-
-      if (currentY + stepHeight > maxY && linesOnPage > 0) {
-        break;
-      }
-
-      if (!item.isEmpty) {
-        if (item.isTitle) {
-          ctx.font = 'bold 36px "Times New Roman", Arial, sans-serif';
-          ctx.fillStyle = '#0f172a';
-        } else if (item.isHeader) {
-          ctx.font = 'bold 30px "Times New Roman", Arial, sans-serif';
-          ctx.fillStyle = '#1e293b';
-        } else {
-          ctx.font = '28px "Times New Roman", Arial, sans-serif';
-          ctx.fillStyle = '#1e293b';
-        }
-        ctx.fillText(item.text, marginX, currentY);
-      }
-
-      currentY += stepHeight;
-      lineIdx++;
-      linesOnPage++;
-    }
-
-    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-    const base64 = jpegDataUrl.split(',')[1];
-    const len = atob(base64).length;
-    const bytes = new Uint8Array(len);
-    const binary = atob(base64);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-
-    const jpgImage = await pdfDoc.embedJpg(bytes);
-    const pdfPage = pdfDoc.addPage([595, 842]);
-    pdfPage.drawImage(jpgImage, {
-      x: 0,
-      y: 0,
-      width: 595,
-      height: 842,
-    });
-
-    if (lineIdx >= renderLines.length) break;
-  }
-
-  const pdfBytes = await pdfDoc.save();
-  return new File([pdfBytes], outputFileName, { type: 'application/pdf' });
+  return await convertHtmlToPDF(htmlContent, outputFileName);
 };
 
 export const convertFileToPDF = async (
@@ -525,30 +536,17 @@ export const convertFileToPDF = async (
 
   const isWord = /\.(docx|doc)$/i.test(file.name);
   if (isWord) {
-    if (onProgress) onProgress(`Đang trích xuất và chuyển file Word "${file.name}" sang PDF...`);
+    if (onProgress) onProgress(`Đang chuyển tài liệu Word "${file.name}" sang PDF chuẩn A4...`);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      // Ưu tiên dùng convertToHtml để giữ trọn vẹn từng câu trong đoạn văn, tránh lỗi gãy câu giữa chừng của XML raw text
       const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
-      let cleanText = '';
-      if (htmlResult && htmlResult.value) {
-        const doc = new DOMParser().parseFromString(htmlResult.value, 'text/html');
-        const blocks: string[] = [];
-        doc.body.childNodes.forEach((node) => {
-          const textContent = (node.textContent || '').replace(/[ \t]+/g, ' ').trim();
-          if (textContent) {
-            blocks.push(textContent);
-          } else if (node.nodeName === 'BR' || node.nodeName === 'P' || node.nodeName === 'DIV') {
-            blocks.push('');
-          }
-        });
-        cleanText = blocks.join('\n');
-      }
-      if (!cleanText.trim()) {
+      let html = htmlResult.value || '';
+      if (!html.trim()) {
         const rawResult = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-        cleanText = rawResult.value || `Tài liệu: ${file.name}\n\n(Nội dung trống hoặc định dạng hình ảnh)`;
+        const lines = (rawResult.value || `Tài liệu: ${file.name}`).split('\n');
+        html = lines.map(line => `<p>${line}</p>`).join('');
       }
-      return await convertTextToPDF(cleanText, targetPdfName, baseName);
+      return await convertHtmlToPDF(html, targetPdfName, onProgress);
     } catch (e) {
       console.warn('Mammoth docx parse fail, fallback to text', e);
       return await convertTextToPDF(`Tài liệu Word: ${file.name}\n\nĐã chuyển đổi sang dạng PDF.`, targetPdfName, baseName);
