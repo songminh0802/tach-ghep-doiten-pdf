@@ -3,6 +3,7 @@ import { PDFDocument, degrees } from 'pdf-lib';
 import JSZip from 'jszip';
 import mammoth from 'mammoth';
 import html2canvas from 'html2canvas';
+import { renderAsync } from 'docx-preview';
 import { PDFPage } from '../types';
 
 // Configure worker.
@@ -514,6 +515,145 @@ export const convertTextToPDF = async (text: string, outputFileName: string, tit
   return await convertHtmlToPDF(htmlContent, outputFileName);
 };
 
+export const convertWordToPDF = async (
+  file: File,
+  outputFileName: string,
+  onProgress?: (message: string) => void
+): Promise<File> => {
+  if (onProgress) onProgress(`Đang dàn trang tài liệu Word "${file.name}" nguyên bản 100%...`);
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.top = '-99999px';
+    container.style.left = '-99999px';
+    container.style.width = '1000px';
+    container.style.backgroundColor = '#ffffff';
+    container.style.zIndex = '-1000';
+    document.body.appendChild(container);
+
+    try {
+      await renderAsync(arrayBuffer, container, undefined, {
+        inWrapper: true,
+        ignoreWidth: false,
+        ignoreHeight: false,
+        ignoreFonts: false,
+        breakPages: true,
+        ignoreLastRenderedPageBreak: false,
+        experimental: false,
+        trimXmlDeclaration: true,
+        useBase64URL: true,
+        useMathMLPolyfill: false,
+      });
+
+      // Lấy toàn bộ các trang chuẩn A4 được docx-preview tạo ra (thường mang class .docx-page)
+      const pageElements = Array.from(container.querySelectorAll('.docx-page')) as HTMLElement[];
+      const pdfDoc = await PDFDocument.create();
+      const scale = 2; // Retina 2x sắc nét
+
+      if (pageElements.length > 0) {
+        for (let i = 0; i < pageElements.length; i++) {
+          if (onProgress) onProgress(`Đang xuất trang PDF từ Word (${i + 1}/${pageElements.length})...`);
+          const pageEl = pageElements[i];
+          const pageCanvas = await html2canvas(pageEl, {
+            scale,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+          });
+
+          const jpegDataUrl = pageCanvas.toDataURL('image/jpeg', 0.95);
+          const base64 = jpegDataUrl.split(',')[1];
+          const len = atob(base64).length;
+          const bytes = new Uint8Array(len);
+          const binary = atob(base64);
+          for (let j = 0; j < len; j++) {
+            bytes[j] = binary.charCodeAt(j);
+          }
+
+          const jpgImage = await pdfDoc.embedJpg(bytes);
+          const pdfPage = pdfDoc.addPage([595, 842]);
+          pdfPage.drawImage(jpgImage, {
+            x: 0,
+            y: 0,
+            width: 595,
+            height: 842,
+          });
+        }
+      } else {
+        const fullCanvas = await html2canvas(container, {
+          scale,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+        const A4_WIDTH_PX = 794;
+        const A4_HEIGHT_PX = 1123;
+        const pageCanvasWidth = A4_WIDTH_PX * scale;
+        const pageCanvasHeight = A4_HEIGHT_PX * scale;
+        const totalPages = Math.max(1, Math.ceil(fullCanvas.height / pageCanvasHeight));
+
+        for (let i = 0; i < totalPages; i++) {
+          if (onProgress) onProgress(`Đang xuất trang PDF (${i + 1}/${totalPages})...`);
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = pageCanvasWidth;
+          pageCanvas.height = pageCanvasHeight;
+          const pageCtx = pageCanvas.getContext('2d')!;
+
+          pageCtx.fillStyle = '#FFFFFF';
+          pageCtx.fillRect(0, 0, pageCanvasWidth, pageCanvasHeight);
+
+          const sourceY = i * pageCanvasHeight;
+          const sourceHeight = Math.min(pageCanvasHeight, fullCanvas.height - sourceY);
+
+          pageCtx.drawImage(
+            fullCanvas,
+            0, sourceY, pageCanvasWidth, sourceHeight,
+            0, 0, pageCanvasWidth, sourceHeight
+          );
+
+          const jpegDataUrl = pageCanvas.toDataURL('image/jpeg', 0.95);
+          const base64 = jpegDataUrl.split(',')[1];
+          const len = atob(base64).length;
+          const bytes = new Uint8Array(len);
+          const binary = atob(base64);
+          for (let j = 0; j < len; j++) {
+            bytes[j] = binary.charCodeAt(j);
+          }
+
+          const jpgImage = await pdfDoc.embedJpg(bytes);
+          const pdfPage = pdfDoc.addPage([595, 842]);
+          pdfPage.drawImage(jpgImage, {
+            x: 0,
+            y: 0,
+            width: 595,
+            height: 842,
+          });
+        }
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      return new File([pdfBytes], outputFileName, { type: 'application/pdf' });
+    } finally {
+      if (container.parentNode) {
+        container.parentNode.removeChild(container);
+      }
+    }
+  } catch (e) {
+    console.warn('docx-preview render fail, fallback to mammoth HTML engine', e);
+    const arrayBuffer = await file.arrayBuffer();
+    const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
+    let html = htmlResult.value || '';
+    if (!html.trim()) {
+      const rawResult = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+      const lines = (rawResult.value || `Tài liệu: ${file.name}`).split('\n');
+      html = lines.map(line => `<p>${line}</p>`).join('');
+    }
+    return await convertHtmlToPDF(html, outputFileName, onProgress);
+  }
+};
+
 export const convertFileToPDF = async (
   file: File,
   onProgress?: (message: string) => void
@@ -536,21 +676,7 @@ export const convertFileToPDF = async (
 
   const isWord = /\.(docx|doc)$/i.test(file.name);
   if (isWord) {
-    if (onProgress) onProgress(`Đang chuyển tài liệu Word "${file.name}" sang PDF chuẩn A4...`);
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
-      let html = htmlResult.value || '';
-      if (!html.trim()) {
-        const rawResult = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-        const lines = (rawResult.value || `Tài liệu: ${file.name}`).split('\n');
-        html = lines.map(line => `<p>${line}</p>`).join('');
-      }
-      return await convertHtmlToPDF(html, targetPdfName, onProgress);
-    } catch (e) {
-      console.warn('Mammoth docx parse fail, fallback to text', e);
-      return await convertTextToPDF(`Tài liệu Word: ${file.name}\n\nĐã chuyển đổi sang dạng PDF.`, targetPdfName, baseName);
-    }
+    return await convertWordToPDF(file, targetPdfName, onProgress);
   }
 
   const isText = /\.(txt|csv|md|json)$/i.test(file.name);
