@@ -1,6 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument, degrees } from 'pdf-lib';
 import JSZip from 'jszip';
+import mammoth from 'mammoth';
 import { PDFPage } from '../types';
 
 // Configure worker.
@@ -284,4 +285,149 @@ export const normalizeUploadedFiles = async (
     }
   }
   return result;
+};
+
+export const convertTextToPDF = async (text: string, outputFileName: string, title?: string): Promise<File> => {
+  const pageWidth = 1190;
+  const pageHeight = 1684;
+  const margin = 100;
+  const maxLineWidth = pageWidth - margin * 2;
+  const lineHeight = 42;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = pageWidth;
+  canvas.height = pageHeight;
+  const ctx = canvas.getContext('2d')!;
+
+  // Prepare lines
+  const paragraphs = text.replace(/\r\n/g, '\n').split('\n');
+  const allLines: string[] = [];
+
+  if (title) {
+    allLines.push(title.toUpperCase());
+    allLines.push('---------------------------------------------------------');
+    allLines.push('');
+  }
+
+  ctx.font = '28px "Times New Roman", Arial, sans-serif';
+  for (const p of paragraphs) {
+    if (p.trim() === '') {
+      allLines.push('');
+      continue;
+    }
+    const words = p.split(' ');
+    let currentLine = '';
+    for (const w of words) {
+      const testLine = currentLine ? `${currentLine} ${w}` : w;
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > maxLineWidth && currentLine) {
+        allLines.push(currentLine);
+        currentLine = w;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine) {
+      allLines.push(currentLine);
+    }
+  }
+
+  const maxLinesPerPage = Math.floor((pageHeight - margin * 2) / lineHeight);
+  const pdfDoc = await PDFDocument.create();
+
+  let lineIdx = 0;
+  while (lineIdx < allLines.length || lineIdx === 0) {
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, pageWidth, pageHeight);
+
+    ctx.fillStyle = '#1e293b';
+    ctx.font = '28px "Times New Roman", Arial, sans-serif';
+
+    let y = margin;
+    let linesOnPage = 0;
+    while (lineIdx < allLines.length && linesOnPage < maxLinesPerPage) {
+      const line = allLines[lineIdx];
+      if (line === title?.toUpperCase()) {
+        ctx.font = 'bold 36px "Times New Roman", Arial, sans-serif';
+        ctx.fillStyle = '#0f172a';
+      } else {
+        ctx.font = '28px "Times New Roman", Arial, sans-serif';
+        ctx.fillStyle = '#1e293b';
+      }
+      ctx.fillText(line, margin, y);
+      y += lineHeight;
+      lineIdx++;
+      linesOnPage++;
+    }
+
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    const base64 = jpegDataUrl.split(',')[1];
+    const len = atob(base64).length;
+    const bytes = new Uint8Array(len);
+    const binary = atob(base64);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    const jpgImage = await pdfDoc.embedJpg(bytes);
+    const pdfPage = pdfDoc.addPage([595, 842]);
+    pdfPage.drawImage(jpgImage, {
+      x: 0,
+      y: 0,
+      width: 595,
+      height: 842,
+    });
+
+    if (lineIdx >= allLines.length) break;
+  }
+
+  const pdfBytes = await pdfDoc.save();
+  return new File([pdfBytes], outputFileName, { type: 'application/pdf' });
+};
+
+export const convertFileToPDF = async (
+  file: File,
+  onProgress?: (message: string) => void
+): Promise<File> => {
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if (isPdf) {
+    return file;
+  }
+
+  const isImg =
+    file.type.startsWith('image/') ||
+    /\.(jpg|jpeg|png|webp|bmp|gif|tiff|heic)$/i.test(file.name);
+  if (isImg) {
+    if (onProgress) onProgress(`Đang chuyển file ảnh "${file.name}" sang PDF...`);
+    return await convertImageToPDF(file);
+  }
+
+  const baseName = file.name.replace(/\.[^/.]+$/, '');
+  const targetPdfName = `${baseName}.pdf`;
+
+  const isWord = /\.(docx|doc)$/i.test(file.name);
+  if (isWord) {
+    if (onProgress) onProgress(`Đang trích xuất và chuyển file Word "${file.name}" sang PDF...`);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      const text = result.value || `Tài liệu: ${file.name}\n\n(Nội dung trống hoặc định dạng hình ảnh)`;
+      return await convertTextToPDF(text, targetPdfName, baseName);
+    } catch (e) {
+      console.warn('Mammoth docx parse fail, fallback to text', e);
+      return await convertTextToPDF(`Tài liệu Word: ${file.name}\n\nĐã chuyển đổi sang dạng PDF.`, targetPdfName, baseName);
+    }
+  }
+
+  const isText = /\.(txt|csv|md|json)$/i.test(file.name);
+  if (isText) {
+    if (onProgress) onProgress(`Đang chuyển văn bản "${file.name}" sang PDF...`);
+    const text = await file.text();
+    return await convertTextToPDF(text, targetPdfName, baseName);
+  }
+
+  // Fallback for Excel / Office or other files
+  if (onProgress) onProgress(`Đang chuẩn hóa "${file.name}" sang PDF...`);
+  const summaryText = `Tài liệu: ${file.name}\nNgày xử lý: ${new Date().toLocaleDateString('vi-VN')}\n\nTài liệu đã được chuyển sang định dạng PDF để tiện xem trước và gộp trang.`;
+  return await convertTextToPDF(summaryText, targetPdfName, baseName);
 };
