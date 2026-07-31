@@ -568,12 +568,26 @@ export const convertWordToPDF = async (
       .docx-page table[style*="border"] th {
         border-color: #000000 !important;
       }
-      /* Đảm bảo chữ trong ô bảng không bị ngắt từ sai (dùng normal thay vì break-word) */
+      /* Khắc phục triệt để lỗi đường viền cắt ngang chữ (row height fix) */
+      .docx-page table tr {
+        height: auto !important;
+        min-height: auto !important;
+      }
       .docx-page table td,
       .docx-page table th {
+        height: auto !important;
+        vertical-align: middle !important;
+        padding: 6px 8px !important;
+        overflow: visible !important;
         box-sizing: border-box;
         word-break: normal;
         word-wrap: break-word;
+      }
+      .docx-page table td p,
+      .docx-page table th p {
+        margin: 0 !important;
+        padding: 2px 0 !important;
+        line-height: 1.4 !important;
       }
       /* Giúp font chữ tiếng Việt hiển thị siêu mịn và chuẩn khoảng cách */
       * {
@@ -588,7 +602,7 @@ export const convertWordToPDF = async (
       await renderAsync(arrayBuffer, container, undefined, {
         inWrapper: true,
         ignoreWidth: false,
-        ignoreHeight: false,
+        ignoreHeight: true, // QUAN TRỌNG: Bỏ qua chiều cao cố định của hàng trong Word để tránh lỗi viền cắt ngang chữ
         ignoreFonts: false,
         breakPages: true,
         ignoreLastRenderedPageBreak: false,
