@@ -524,9 +524,10 @@ export const convertWordToPDF = async (
 
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const A4_WIDTH_PX = 794;  // 210mm chuẩn A4 CSS
-    const A4_HEIGHT_PX = 1123; // 297mm chuẩn A4 CSS
-    const scale = 2; // Retina 2x sắc nét
+    // A4 CSS pixels at 96dpi: 210mm = 794px, 297mm = 1123px
+    const A4_WIDTH_PX = 794;
+    const A4_HEIGHT_PX = 1123;
+    const scale = 2; // Retina 2x
 
     const container = document.createElement('div');
     container.style.position = 'absolute';
@@ -534,83 +535,33 @@ export const convertWordToPDF = async (
     container.style.left = '-99999px';
     container.style.width = `${A4_WIDTH_PX}px`;
     container.style.backgroundColor = '#ffffff';
-    container.style.zIndex = '-1000';
+    container.style.overflow = 'hidden';
 
-    // CSS Override triệt để shadow, background xám và lề của docx-preview
+    // CSS tối thiểu: chỉ xoá shadow/viền giả và bảo vệ các ô bảng
     const styleOverride = document.createElement('style');
     styleOverride.innerHTML = `
       .docx-wrapper {
         background: #ffffff !important;
         padding: 0 !important;
         margin: 0 !important;
-        width: ${A4_WIDTH_PX}px !important;
       }
       .docx-page {
         box-shadow: none !important;
         margin: 0 !important;
         border: none !important;
         background: #ffffff !important;
+        /* Lề in Word mặc định: trên/dưới 2.54cm (96px), trái/phải 3.17cm (120px) */
+        padding: 96px 120px !important;
         width: ${A4_WIDTH_PX}px !important;
         min-height: ${A4_HEIGHT_PX}px !important;
-        padding: 50px 60px !important; /* Lề chuẩn A4 Word */
-      }
-      /* KHÔNG override width hay table-layout của bảng trong Word để giữ nguyên 100% tỷ lệ cột gốc */
-      .docx-page table {
-        border-collapse: collapse;
-        max-width: 100%;
-        margin-left: auto;
-        margin-right: auto;
-      }
-      /* Đảm bảo đường viền bảng hiển thị đen rõ nét khi chụp html2canvas */
-      .docx-page table td[style*="border"],
-      .docx-page table th[style*="border"],
-      .docx-page table[style*="border"] td,
-      .docx-page table[style*="border"] th {
-        border-color: #000000 !important;
-      }
-      /* Khắc phục triệt để lỗi đường viền cắt ngang chữ (row height fix) */
-      .docx-page table tr {
-        height: auto !important;
-        min-height: auto !important;
-      }
-      .docx-page table td,
-      .docx-page table th {
-        height: auto !important;
-        vertical-align: middle !important;
-        padding: 6px 8px !important;
+        box-sizing: border-box !important;
         overflow: visible !important;
-        box-sizing: border-box;
-        word-break: normal;
-        word-wrap: break-word;
       }
-      .docx-page table td p,
-      .docx-page table th p {
-        margin: 0 !important;
-        padding: 2px 0 !important;
-        line-height: 1.4 !important;
-      }
-      /* Ẩn hoàn toàn Tracked Changes: xoá bỏ đánh dấu thay đổi trong Word */
-      .docx-page del,
-      .docx-page ins[style*="line-through"],
-      .docx-page span[style*="line-through"],
-      .docx-page p[style*="line-through"] {
-        text-decoration: none !important;
-        color: inherit !important;
-        background: none !important;
-      }
-      /* Xoá bỏ gạch ngang chữ do revision/tracked changes toàn cục */
-      .docx-page * {
-        text-decoration-line: none !important;
-      }
-      /* Ngoại trừ: chỉ cho phép underline trên heading nếu có */
-      .docx-page h1, .docx-page h2, .docx-page h3 {
-        text-decoration: inherit;
-      }
-      /* Giúp font chữ tiếng Việt hiển thị siêu mịn và chuẩn khoảng cách */
-      * {
-        -webkit-font-smoothing: antialiased;
-        text-rendering: geometricPrecision;
-      }
+      /* Ẩn hoàn toàn Tracked Changes */
+      .docx-page del { display: none !important; }
+      .docx-page * { text-decoration-line: none !important; }
+      /* Font mịn */
+      * { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
     `;
     container.appendChild(styleOverride);
     document.body.appendChild(container);
@@ -618,8 +569,8 @@ export const convertWordToPDF = async (
     try {
       await renderAsync(arrayBuffer, container, undefined, {
         inWrapper: true,
-        ignoreWidth: false,
-        ignoreHeight: true, // QUAN TRỌNG: Bỏ qua chiều cao cố định của hàng trong Word để tránh lỗi viền cắt ngang chữ
+        ignoreWidth: true,   // Để bảng tự co dãn theo width thực tế của container (A4)
+        ignoreHeight: true,  // Bỏ chiều cao cố định của hàng, tránh viền cắt ngang chữ
         ignoreFonts: false,
         breakPages: true,
         ignoreLastRenderedPageBreak: false,
