@@ -589,6 +589,23 @@ export const convertWordToPDF = async (
         padding: 2px 0 !important;
         line-height: 1.4 !important;
       }
+      /* Ẩn hoàn toàn Tracked Changes: xoá bỏ đánh dấu thay đổi trong Word */
+      .docx-page del,
+      .docx-page ins[style*="line-through"],
+      .docx-page span[style*="line-through"],
+      .docx-page p[style*="line-through"] {
+        text-decoration: none !important;
+        color: inherit !important;
+        background: none !important;
+      }
+      /* Xoá bỏ gạch ngang chữ do revision/tracked changes toàn cục */
+      .docx-page * {
+        text-decoration-line: none !important;
+      }
+      /* Ngoại trừ: chỉ cho phép underline trên heading nếu có */
+      .docx-page h1, .docx-page h2, .docx-page h3 {
+        text-decoration: inherit;
+      }
       /* Giúp font chữ tiếng Việt hiển thị siêu mịn và chuẩn khoảng cách */
       * {
         -webkit-font-smoothing: antialiased;
@@ -611,6 +628,25 @@ export const convertWordToPDF = async (
         useBase64URL: true,
         useMathMLPolyfill: false,
       });
+
+      // === DOM Cleanup: Xoá toàn bộ Tracked Changes và gạch ngang chữ trước khi chụp ảnh ===
+      // Xoá các thẻ <del> (text bị xoá trong Word Tracked Changes)
+      const delElements = Array.from(container.querySelectorAll('del'));
+      delElements.forEach(el => el.remove());
+
+      // Xoá text-decoration: line-through trực tiếp trên element.style (override mạnh hơn CSS class)
+      const allElements = Array.from(container.querySelectorAll('*')) as HTMLElement[];
+      allElements.forEach(el => {
+        if (el.style) {
+          const td = el.style.textDecoration || '';
+          const tdLine = el.style.getPropertyValue('text-decoration-line') || '';
+          if (td.includes('line-through') || tdLine.includes('line-through')) {
+            el.style.textDecoration = 'none';
+            el.style.setProperty('text-decoration-line', 'none', 'important');
+          }
+        }
+      });
+      // ==================================================================================
 
       const pageElements = Array.from(container.querySelectorAll('.docx-page')) as HTMLElement[];
       const pdfDoc = await PDFDocument.create();
