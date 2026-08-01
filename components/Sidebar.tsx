@@ -50,9 +50,7 @@ interface SidebarProps {
   onAiSuggestNameForItem?: (item: UploadedFileItem) => void;
   useAiChapterNaming?: boolean;
   setUseAiChapterNaming?: (enabled: boolean) => void;
-  onConvertItemToPDF?: (item: UploadedFileItem) => void;
-  onConvertAllToPDFZip?: () => void;
-  onConvertAllToPDFAndLoad?: () => void;
+
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -82,12 +80,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onAiSuggestNameForItem,
   useAiChapterNaming = true,
   setUseAiChapterNaming,
-  onConvertItemToPDF,
-  onConvertAllToPDFZip,
-  onConvertAllToPDFAndLoad,
+
 }) => {
   // 5 Tabs: 'preview' | 'rename' | 'split' | 'convert' | 'merge'
-  const [activeTab, setActiveTab] = useState<'preview' | 'rename' | 'split' | 'convert' | 'merge'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'rename' | 'split' | 'merge'>('preview');
 
   // Reset to preview mode when loading a new file
   useEffect(() => {
@@ -169,19 +165,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="truncate">Tách file</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('convert')}
-            className={clsx(
-              "flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-[11px] font-bold transition-all duration-200",
-              activeTab === 'convert'
-                ? "bg-white text-purple-700 shadow-sm ring-1 ring-slate-200"
-                : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-            )}
-            title="Chuyển đổi Word, Văn bản, Hình ảnh sang PDF"
-          >
-            <RefreshCw className="w-3.5 h-3.5 mb-0.5" />
-            <span className="truncate">Chuyển PDF</span>
-          </button>
 
           <button
             onClick={() => setActiveTab('merge')}
@@ -758,105 +741,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
 
-        {/* ======================= TAB 4: CHUYỂN FILE SANG PDF (CONVERT TAB) ======================= */}
-        {activeTab === 'convert' && (
-          <>
-            <div className="p-3 bg-purple-50 border border-purple-200/70 rounded-xl space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-purple-600"></span>
-                <span className="text-xs font-bold text-purple-900">
-                  ⚡ 4. Chuyển đổi tài liệu sang PDF
-                </span>
-              </div>
-              <p className="text-[11px] text-purple-800/90 leading-relaxed">
-                Chuyển đổi siêu tốc tài liệu Word (.docx), Văn bản (.txt, .csv), và Hình ảnh (.jpg, .png...) sang PDF chuẩn A4, giữ nguyên tiếng Việt.
-              </p>
-            </div>
-
-            {(!uploadedFiles || uploadedFiles.length === 0) ? (
-              <div className="p-5 border-2 border-dashed border-purple-200 rounded-xl text-center space-y-2">
-                <FileText className="w-8 h-8 text-purple-400 mx-auto" />
-                <p className="text-xs text-slate-600 font-medium">Chưa có file tài liệu nào</p>
-                <p className="text-[11px] text-slate-500">
-                  Vui lòng tải lên file Word (.docx), Văn bản (.txt) hoặc Hình ảnh phía dưới để chuyển sang PDF.
-                </p>
-              </div>
-            ) : (
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700">
-                    Danh sách tài liệu ({uploadedFiles.length} file)
-                  </span>
-                </div>
-
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                  {uploadedFiles.map((item, index) => {
-                    const isWord = /\.(docx|doc)$/i.test(item.originalName);
-                    const isImg = item.file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp|gif|tiff|heic)$/i.test(item.originalName);
-                    const isPdf = item.file.type === 'application/pdf' || item.originalName.toLowerCase().endsWith('.pdf');
-
-                    return (
-                      <div
-                        key={item.id}
-                        className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="text-xs font-bold text-slate-400 w-5">
-                            #{index + 1}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-800 truncate" title={item.originalName}>
-                              {item.customName ? `${item.customName}.pdf` : item.originalName}
-                            </p>
-                            <span className={clsx(
-                              "inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase mt-0.5",
-                              isWord && "bg-blue-100 text-blue-700",
-                              isImg && "bg-amber-100 text-amber-700",
-                              isPdf && "bg-emerald-100 text-emerald-700",
-                              !isWord && !isImg && !isPdf && "bg-slate-200 text-slate-700"
-                            )}>
-                              {isWord ? 'Word (.docx)' : isImg ? 'Hình ảnh' : isPdf ? 'PDF' : 'Văn bản / Office'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => onConvertItemToPDF?.(item)}
-                          disabled={processingState.isProcessing}
-                          className="px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-sm shrink-0 transition-all"
-                          title="Chuyển file này sang PDF và tải về"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>PDF</span>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="pt-2 space-y-2">
-                  <button
-                    onClick={() => onConvertAllToPDFZip?.()}
-                    disabled={processingState.isProcessing}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>⚡ Chuyển TẤT CẢ sang PDF & Tải ZIP</span>
-                  </button>
-
-                  <button
-                    onClick={() => onConvertAllToPDFAndLoad?.()}
-                    disabled={processingState.isProcessing}
-                    className="w-full py-2.5 px-4 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-900 text-xs font-bold border border-purple-300/80 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                  >
-                    <Eye className="w-4 h-4 text-purple-700" />
-                    <span>🔄 Chuyển sang PDF & Mở vào Xem trước / Gộp</span>
-                  </button>
-                </div>
-              </section>
-            )}
-          </>
-        )}
 
         {/* ======================= TAB 5: GỘP FILE (MERGE TAB) ======================= */}
         {activeTab === 'merge' && (

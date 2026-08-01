@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { UploadCloud, AlertCircle, Sparkles, RefreshCw, Download, Split, Merge, FileStack, FileText, Plus, Eye, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { PDFViewer } from './components/PDFViewer';
-import { loadPDFAndRenderThumbnails, loadFirstPageThumbnailFast, splitPDF, extractSeparatePages, createZipFromPages, mergePDFs, createBlankPDF, createZipFromFiles, normalizeUploadedFiles, convertFileToPDF } from './services/pdfService';
+import { loadPDFAndRenderThumbnails, loadFirstPageThumbnailFast, splitPDF, extractSeparatePages, createZipFromPages, mergePDFs, createBlankPDF, createZipFromFiles, normalizeUploadedFiles } from './services/pdfService';
 import { analyzeSplitPoints, suggestFileNameWithAI, suggestBatchFileNamesWithAI, suggestChapterNamesWithAI } from './services/geminiService';
 import { PDFPage, SelectionMode, ProcessingState, UploadedFileItem } from './types';
 import { Button } from './components/Button';
@@ -306,106 +306,6 @@ const App: React.FC = () => {
       URL.revokeObjectURL(url);
     } catch (err: any) {
       setError('Lỗi khi tạo file ZIP: ' + err.message);
-    } finally {
-      setProcessingState({ isProcessing: false, message: '', progress: 0 });
-    }
-  };
-
-  const handleConvertItemToPDF = async (item: UploadedFileItem) => {
-    setProcessingState({ isProcessing: true, message: `Đang chuyển đổi "${item.file.name}" sang PDF...`, progress: 50 });
-    try {
-      const pdfFile = await convertFileToPDF(item.file, (msg) => {
-        setProcessingState(prev => ({ ...prev, message: msg }));
-      });
-      const finalName = `${item.customName.trim() || item.originalName.replace(/\.[^/.]+$/, '')}.pdf`;
-      const renamedPdf = new File([await pdfFile.arrayBuffer()], finalName, { type: 'application/pdf' });
-      const url = URL.createObjectURL(renamedPdf);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = renamedPdf.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err: any) {
-      console.error('Lỗi chuyển sang PDF:', err);
-      setError('Không thể chuyển đổi file sang PDF.');
-    } finally {
-      setProcessingState({ isProcessing: false, message: '', progress: 0 });
-    }
-  };
-
-  const handleConvertAllToPDFZip = async () => {
-    if (uploadedFiles.length === 0) return;
-    setProcessingState({ isProcessing: true, message: `Đang chuyển đổi ${uploadedFiles.length} tài liệu sang PDF...`, progress: 0 });
-    try {
-      const convertedFiles: { file: File; name: string; originalName: string }[] = [];
-      for (let i = 0; i < uploadedFiles.length; i++) {
-        const item = uploadedFiles[i];
-        setProcessingState(prev => ({
-          ...prev,
-          message: `Đang chuyển (${i + 1}/${uploadedFiles.length}): ${item.file.name}...`,
-          progress: Math.round(((i + 1) / uploadedFiles.length) * 100),
-        }));
-        const pdfFile = await convertFileToPDF(item.file);
-        const finalName = item.customName.trim() || item.originalName.replace(/\.[^/.]+$/, '');
-        convertedFiles.push({
-          file: pdfFile,
-          name: finalName,
-          originalName: `${finalName}.pdf`
-        });
-      }
-
-      setProcessingState({ isProcessing: true, message: 'Đang nén file ZIP PDF...', progress: 95 });
-      const zipBlob = await createZipFromFiles(convertedFiles);
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Danh_sach_${uploadedFiles.length}_file_chuyen_PDF.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err: any) {
-      console.error('Lỗi chuyển tất cả sang PDF:', err);
-      setError('Có lỗi xảy ra khi chuyển danh sách file sang PDF.');
-    } finally {
-      setProcessingState({ isProcessing: false, message: '', progress: 0 });
-    }
-  };
-
-  const handleConvertAllToPDFAndLoad = async () => {
-    if (uploadedFiles.length === 0) return;
-    setProcessingState({ isProcessing: true, message: `Đang chuyển đổi ${uploadedFiles.length} tài liệu sang PDF...`, progress: 0 });
-    try {
-      const convertedFiles: File[] = [];
-      for (let i = 0; i < uploadedFiles.length; i++) {
-        const item = uploadedFiles[i];
-        const pdfFile = await convertFileToPDF(item.file, (msg) => {
-          setProcessingState(prev => ({ ...prev, message: msg }));
-        });
-        convertedFiles.push(pdfFile);
-      }
-
-      let targetFile: File;
-      if (convertedFiles.length > 1) {
-        setProcessingState({ isProcessing: true, message: 'Đang gộp các trang PDF vào không gian làm việc...', progress: 80 });
-        targetFile = await mergePDFs(convertedFiles);
-      } else {
-        targetFile = convertedFiles[0];
-      }
-
-      setFile(targetFile);
-      setOutputFileName(targetFile.name.replace(/\.[^/.]+$/i, ''));
-      const loadedPages = await loadPDFAndRenderThumbnails(targetFile, (percent) => {
-        setProcessingState(prev => ({ ...prev, progress: percent }));
-      });
-      setPages(loadedPages);
-      setHistory([]);
-      setFuture([]);
-    } catch (err: any) {
-      console.error('Lỗi tải vào không gian làm việc:', err);
-      setError('Không thể mở tài liệu đã chuyển đổi trong trình xem.');
     } finally {
       setProcessingState({ isProcessing: false, message: '', progress: 0 });
     }
@@ -805,9 +705,6 @@ const App: React.FC = () => {
         onDownloadUploadedFile={handleDownloadUploadedFile}
         onDownloadAllUploadedFilesZip={handleDownloadAllUploadedFilesZip}
         onAiSuggestNameForItem={handleAiSuggestNameForItem}
-        onConvertItemToPDF={handleConvertItemToPDF}
-        onConvertAllToPDFZip={handleConvertAllToPDFZip}
-        onConvertAllToPDFAndLoad={handleConvertAllToPDFAndLoad}
       />
 
       {/* Main Content Area */}
